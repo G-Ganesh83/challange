@@ -16,6 +16,10 @@
         </div>
         <div class="top-row">
           <div id="prompt">Sneak around the cozy disaster room.</div>
+          <div class="timer-wrap" id="timer-wrap">
+            <span>TIME</span>
+            <div id="timer-display">02:30</div>
+          </div>
           <div class="noise-wrap">
             <span>SUSPICION</span>
             <div class="noise-bar"><div id="noise-fill"></div></div>
@@ -76,6 +80,14 @@
             <div>Door <span>(Medium Noise)</span></div>
           </div>
         </section>
+      </div>
+    </div>
+    <div id="end-screen" class="end-screen hidden">
+      <div class="end-card">
+        <div id="end-eyebrow" class="end-eyebrow">ESCAPED!</div>
+        <div id="end-rank" class="end-rank">PERFECT THIEF</div>
+        <div id="end-stats" class="end-stats"></div>
+        <button id="end-replay-btn" class="end-replay-btn">&#9654; PLAY AGAIN</button>
       </div>
     </div>
     <script type="module" src="/main.js"></script>

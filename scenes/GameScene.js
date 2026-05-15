@@ -22,6 +22,14 @@ export default class GameScene extends Phaser.Scene {
     this.safeZoneSoundArmed = true;
     this.lastStirAt = 0;
     this.debugWallsEnabled = false;
+    this.lastSideWallBumpAt = 0;
+    // New gameplay loop state
+    this.timerSeconds = 150;
+    this.timerRunning = false;
+    this.fullPanicTriggered = false;
+    this.totalNoiseAccumulated = 0;
+    this.chaseModeHappened = false;
+    this.hiddenSuccessfully = false;
   }
 
   preload() {
@@ -80,6 +88,13 @@ export default class GameScene extends Phaser.Scene {
     this.exitPromptVisible = false;
     this.exitPromptMode = '';
     this.debugWallsEnabled = new URLSearchParams(window.location.search).has('debugWalls');
+    this.lastSideWallBumpAt = 0;
+    this.timerSeconds = 150;
+    this.timerRunning = false;
+    this.fullPanicTriggered = false;
+    this.totalNoiseAccumulated = 0;
+    this.chaseModeHappened = false;
+    this.hiddenSuccessfully = false;
 
     this.createTextures();
     this.createRoom();
@@ -89,6 +104,7 @@ export default class GameScene extends Phaser.Scene {
     this.bindInput();
     this.createAudio();
     this.setupPolish();
+    this.initTimer();
     this.updatePrompt('Sneak. The room is weirdly cozy.');
   }
 
@@ -264,60 +280,55 @@ export default class GameScene extends Phaser.Scene {
       this.dustGroup.add(dust);
     }
 
+    // Walls: keep explicit references too, so collisions don't depend on group internals.
+    this.wallColliders = [];
     this.roomWalls = this.physics.add.staticGroup();
+    // Room boundary colliders (stable, tuned rectangles; not image bounds).
+    // NOTE: x/y are rectangle centers in Phaser.
     const addWall = (x, y, w2, h2) => {
       const alpha = this.debugWallsEnabled ? 0.22 : 0;
       const wall = this.add.rectangle(x, y, w2, h2, 0xff3b3b, alpha).setDepth(2);
-      if (this.debugWallsEnabled) {
-        wall.setStrokeStyle(2, 0xffffff, 0.35);
-      }
+      if (this.debugWallsEnabled) wall.setStrokeStyle(2, 0xffffff, 0.35);
       this.physics.add.existing(wall, true);
       wall.body.setSize(w2, h2);
       wall.body.updateFromGameObject();
       this.roomWalls.add(wall);
+      this.wallColliders.push(wall);
       return wall;
     };
+
+    // Preserve the current "top wall feel" (same y/height + door gap segments).
     addWall(216, 40, 384, 26);
     addWall(480, 40, 144, 26);
     addWall(744, 40, 384, 26);
-    addWall(24, 320, 28, 592);
-    // Right and bottom walls strengthened to fully contain movement.
-    addWall(952, 320, 56, 592);
-    addWall(480, 636, 960, 48);
 
-    // Collision obstacles (furniture) live in one group for consistency.
-    this.obstacles = this.physics.add.staticGroup();
-    const addObstacle = (x, y, w2, h2) => {
-      const box = this.add.rectangle(x, y, w2, h2, 0x000000, 0).setDepth(2);
-      this.physics.add.existing(box, true);
-      box.body.setSize(w2, h2);
-      box.body.updateFromGameObject();
-      this.obstacles.add(box);
-      return box;
-    };
+    // Side + bottom walls mirror the top wall's 26px static-rectangle collider behavior.
+    addWall(40, 216, 26, 384);
+    addWall(40, 480, 26, 144);
+    addWall(40, 576, 26, 48);
+    addWall(920, 216, 26, 384);
+    addWall(920, 480, 26, 144);
+    addWall(920, 576, 26, 48);
+    addWall(216, 600, 384, 26);
+    addWall(480, 600, 144, 26);
+    addWall(744, 600, 384, 26);
 
     // Composition: left workstation, open center, right tension zone.
     // Left = cozy work area (tight + organized).
     // Nudge the workstation slightly right to create a tighter left lane and a clearer mid route.
-    this.desk = this.add.image(230, 246, 'desk').setScale(0.27).setDepth(20);
-    this.chair = this.add.image(242, 350, 'chair').setScale(0.25).setDepth(19);
+    this.desk = this.add.image(300, 200, 'desk').setScale(0.30).setDepth(20);
+    this.chair = this.add.image(180, 400, 'chair').setScale(0.22).setDepth(19).setAngle(0);
     // Desk-top props: keep them visually "on the desk", not stacking over the chair lane.
-    this.lamp = this.add.image(170, 214, 'lamp').setScale(0.20).setDepth(21);
-    this.books = this.add.image(296, 218, 'books').setScale(0.20).setDepth(21);
-    this.plant = this.add.image(116, 178, 'plant').setScale(0.22).setDepth(21);
+    this.lamp = this.add.image(370, 130, 'lamp').setScale(0.14).setDepth(21);
+    this.books = this.add.image(820, 180, 'books').setScale(0.16).setDepth(21);
+    this.plant = this.add.image(340, 520, 'plant').setScale(0.24).setDepth(21);
+    this.plant = this.add.image(720, 550, 'plant').setScale(0.21).setDepth(21);
 
     // Right = risk / tension zone (owner + bed + safe closet).
-    this.bed = this.add.image(744, 214, 'bed').setScale(0.26).setDepth(20);
-    const closetX = 846;
+    this.bed = this.add.image(744, 214, 'bed').setScale(0.3).setDepth(20);
+    const closetX = 820;
     const closetY = 440;
     this.closet = this.add.image(closetX, closetY, 'closet').setScale(0.24).setDepth(20);
-
-    // Fair collision rectangles (smaller than the art).
-    // Keep center mostly open; only major furniture blocks movement.
-    addObstacle(230, 266, 170, 70); // desk footprint
-    addObstacle(252, 370, 92, 60);  // chair body (wider to force routing)
-    addObstacle(744, 258, 190, 86); // bed footprint
-    addObstacle(116, 186, 44, 44);  // plant pot
 
     // Bottle stays a loot item (no physics body needed).
     // Put it near the right lane (tempting, but not blocking the central rug).
@@ -398,23 +409,23 @@ export default class GameScene extends Phaser.Scene {
     };
 
     // Loot spread: gold easy (left), key important (near exit route), gem risky (near bed/owner).
-    const lootScale = 0.22;
+    const lootScale = 0.20;
     // Easy gold: tucked behind the chair/desk corner so you must route around furniture.
-    const goldSprite = this.add.image(328, 360, 'gold').setScale(lootScale).setDepth(22);
-    const goldShadow = makeShadow(328, 372, 22, 10, 0.12, 17);
-    const goldGlow = makeGlow(328, 360, 0xffd56d, 0.14, 17, 20);
+    const goldSprite = this.add.image(130, 520, 'gold').setScale(lootScale).setDepth(22);
+    const goldShadow = makeShadow(328, 372, 22, 10, 0.8, 17);
+    const goldGlow = makeGlow(328, 360, 0xffd56d, 0.8, 18, 50);
     const goldRing = makeRing(328, 360, 0xffe498, 0.08, 20, 16, 18);
 
     // Key: on the desk (no floating under the top wall), still encourages left-side visit.
-    const keySprite = this.add.image(278, 208, 'key').setScale(lootScale).setDepth(23);
-    const keyShadow = makeShadow(278, 220, 22, 10, 0.12, 17);
-    const keyGlow = makeGlow(278, 208, 0x91b7ff, 0.14, 17, 20);
-    const keyRing = makeRing(278, 208, 0xbcd3ff, 0.08, 20, 16, 18);
+    const keySprite = this.add.image(130, 200, 'key').setScale(lootScale).setDepth(23);
+    const keyShadow = makeShadow(130, 200, 22, 10, 0.12, 17);
+    const keyGlow = makeGlow(130, 200, 0x91b7ff, 0.8, 17, 36);
+    const keyRing = makeRing(130, 200, 0xbcd3ff, 0.08, 20, 16, 18);
 
     // Risky loot: gem beside the bed/owner area.
-    const gemSprite = this.add.image(816, 276, 'gem').setScale(lootScale).setDepth(23);
+    const gemSprite = this.add.image(816, 276, 'gem').setScale(0.16).setDepth(23);
     const gemShadow = makeShadow(816, 288, 22, 10, 0.12, 17);
-    const gemGlow = makeGlow(816, 276, 0xff9452, 0.14, 17, 20);
+    const gemGlow = makeGlow(816, 276, 0xff9452, 0.8, 18, 32);
     const gemRing = makeRing(816, 276, 0xffc09a, 0.08, 20, 16, 18);
 
     this.lootItems = [bottleItem];
@@ -467,7 +478,8 @@ export default class GameScene extends Phaser.Scene {
   createPlayer() {
     this.playerShadow = this.add.ellipse(480, 372, 28, 12, 0x000000, 0.22).setDepth(29);
     this.player = this.physics.add.sprite(480, 520, 'thief_idle');
-    this.player.setSize(38, 56).setOffset(14, 20);
+    // Top-down collision is anchored to the grounded feet/lower cloak, not the hood.
+    this.player.setSize(22, 16).setOffset(27, 58);
     this.player.body.enable = true;
     this.player.speed = 180;
     this.player.runSpeed = 260;
@@ -477,10 +489,9 @@ export default class GameScene extends Phaser.Scene {
     this.player.setDepth(30);
     this.playerShadow.setDepth(29);
     this.player.setCollideWorldBounds(true);
-    this.physics.add.collider(this.player, this.roomWalls, this.onPlayerWallContact, null, this);
-    if (this.obstacles) {
-      this.physics.add.collider(this.player, this.obstacles);
-    }
+    // Collide against explicit wall list for reliability (group collisions can be finicky with custom rectangles).
+    this.physics.add.collider(this.player, this.wallColliders ?? this.roomWalls, this.onPlayerWallContact, null, this);
+
   }
 
   createOwner() {
@@ -493,10 +504,8 @@ export default class GameScene extends Phaser.Scene {
     this.owner.setScale(0.25);
     this.owner.setDepth(21);
     this.owner.setCollideWorldBounds(true);
-    this.physics.add.collider(this.owner, this.roomWalls);
-    if (this.obstacles) {
-      this.physics.add.collider(this.owner, this.obstacles);
-    }
+    this.physics.add.collider(this.owner, this.wallColliders ?? this.roomWalls);
+    // Furniture/props should NOT block owner either (walls only).
     this.physics.add.collider(this.owner, this.safeZoneBlock);
     this.physics.add.overlap(this.player, this.owner, () => this.onCaught());
   }
@@ -556,6 +565,9 @@ export default class GameScene extends Phaser.Scene {
     this.updateAmbientMotion(time);
     this.updatePlayerReadability();
     this.updatePlayerSafeZoneVisual(delta);
+    this.updateTimer(delta);
+    this.updateExitGlow(time);
+
   }
 
   updateSuspicion(delta) {
@@ -593,6 +605,7 @@ export default class GameScene extends Phaser.Scene {
     const target = new Phaser.Math.Vector2(left + right, up + down).normalize().scale(moving ? speed : 0);
     this.player.body.velocity.x = Phaser.Math.Linear(this.player.body.velocity.x, target.x, 0.28);
     this.player.body.velocity.y = Phaser.Math.Linear(this.player.body.velocity.y, target.y, 0.28);
+
     // Sprinting increases suspicion gradually (time-based, not frame-based).
     if (moving && this.cursors.SHIFT.isDown) {
       const dt = Math.max(0, delta ?? 16) / 1000;
@@ -647,6 +660,22 @@ export default class GameScene extends Phaser.Scene {
     // Rewarding pickup feedback: small pop + floating text.
     const fxX = item.sprite?.x ?? this.player.x;
     const fxY = item.sprite?.y ?? this.player.y;
+    // Tiny sparkle burst to make pickups feel "gamey" without clutter.
+    for (let i = 0; i < 6; i++) {
+      const p = this.add.circle(fxX, fxY - 6, Phaser.Math.Between(1, 2), 0xfff1b0, 0.85).setDepth(119);
+      p.setBlendMode(Phaser.BlendModes.ADD);
+      const a = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const r = Phaser.Math.Between(10, 22);
+      this.tweens.add({
+        targets: p,
+        x: fxX + Math.cos(a) * r,
+        y: fxY - 6 + Math.sin(a) * r,
+        alpha: 0,
+        duration: 260,
+        ease: 'Sine.out',
+        onComplete: () => p.destroy()
+      });
+    }
     const floatText = this.add.text(fxX, fxY - 18, '+1 Loot', {
       fontFamily: '"Press Start 2P"',
       fontSize: '11px',
@@ -717,15 +746,19 @@ export default class GameScene extends Phaser.Scene {
 
   updateWallBumpArming() {
     if (!this.player?.body) return;
-    const touchingWall = !!(
-      this.player.body.blocked.left ||
-      this.player.body.blocked.right ||
-      this.player.body.blocked.up ||
-      this.player.body.blocked.down
+    const b = this.player.body;
+    // Re-arm only after fully separating from walls.
+    const touchingSolid = !!(
+      b.blocked.left ||
+      b.blocked.right ||
+      b.blocked.up ||
+      b.blocked.down ||
+      b.touching.left ||
+      b.touching.right ||
+      b.touching.up ||
+      b.touching.down
     );
-    if (!touchingWall) {
-      this.wallBumpArmed = true;
-    }
+    if (!touchingSolid) this.wallBumpArmed = true;
   }
 
   handleOwner(dt) {
@@ -738,10 +771,15 @@ export default class GameScene extends Phaser.Scene {
       this.owner.setTexture('owner_alert');
       this.owner.setScale(this.ownerAlertScale);
       const inSafeZone = this.isPlayerInSafeZone();
+      // If player is in the safe zone, "pace/search" just outside it instead of freezing.
       const targetX = inSafeZone
-        ? Phaser.Math.Clamp(this.player.x, this.safeZoneRect.left + 10, this.safeZoneRect.right - 10)
+        ? Phaser.Math.Clamp(
+          this.safeZoneRect.centerX + Math.sin(this.time.now * 0.004) * (this.safeZoneRect.width * 0.42),
+          this.safeZoneRect.left - 28,
+          this.safeZoneRect.right + 28
+        )
         : this.player.x;
-      const targetY = inSafeZone ? this.safeZoneRect.bottom + 36 : this.player.y;
+      const targetY = inSafeZone ? this.safeZoneRect.bottom + 34 + Math.cos(this.time.now * 0.0035) * 10 : this.player.y;
       if (inSafeZone && Phaser.Math.Distance.Between(this.owner.x, this.owner.y, targetX, targetY) < 14) {
         this.owner.setVelocity(0, 0);
         return;
@@ -804,6 +842,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.noise >= 0.8) {
       this.chaseMode = true;
+      this.chaseModeHappened = true;
       this.owner.state = 'chase';
       this.setOwnerBreathing(false);
       this.owner.setTexture('owner_alert');
@@ -813,6 +852,26 @@ export default class GameScene extends Phaser.Scene {
       this.flashRed();
       this.ownerWakeBurst();
       this.playSfx('fahh', { minGap: 1600, delay: 80 });
+      this.tweens.killTweensOf(this.owner);
+      const baseY = this.owner.y;
+      this.tweens.add({
+        targets: this.owner,
+        y: baseY - 8,
+        duration: 90,
+        yoyo: true,
+        repeat: 0,
+        ease: 'Sine.out'
+      });
+      this.tweens.add({
+        targets: this.owner,
+        scaleX: this.ownerAlertScale * 1.06,
+        scaleY: this.ownerAlertScale * 1.06,
+        duration: 110,
+        yoyo: true,
+        repeat: 0,
+        ease: 'Back.out'
+      });
+      this.screenShake(28);
       this.updatePrompt('OH NO. OWNER HAS ENTERED PANIC MODE.');
       return;
     }
@@ -831,14 +890,33 @@ export default class GameScene extends Phaser.Scene {
     return this.isPlayerInSafeZone() || this.isPlayerInExitZone();
   }
 
-  onPlayerWallContact() {
-    if (this.gameOver || this.hidden || this.isWallTouchExempt()) return;
-    if (!this.wallBumpArmed) return;
-    this.wallBumpArmed = false;
+  isSideWall(solid) {
+    const body = solid?.body;
+    return !!body && body.width <= 30 && body.height > body.width && (solid.x < 120 || solid.x > 840);
+  }
 
-    // Wall bumps are suspicious, but shouldn't instantly force full panic.
+  bumpPlayerBackFromSideWall(solid) {
+    if (!this.isSideWall(solid) || !this.player?.body) return;
+    const dir = solid.x < this.player.x ? 1 : -1;
+    const nextX = Phaser.Math.Clamp(this.player.x + dir * 18, 48, 912);
+    this.player.body.reset(nextX, this.player.y);
+  }
+
+  onPlayerWallContact(_player, solid) {
+    if (this.gameOver || this.hidden || this.isWallTouchExempt()) return;
+    if (this.isSideWall(solid)) {
+      const now = this.time.now;
+      if (now - (this.lastSideWallBumpAt ?? 0) < 420) return;
+      this.lastSideWallBumpAt = now;
+    } else {
+      if (!this.wallBumpArmed) return;
+      this.wallBumpArmed = false;
+    }
+
+    // Bumps are suspicious, but shouldn't instantly force full panic.
     this.addNoise(0.08);
     this.playSfx('fahh', { minGap: 180, delay: 10 });
+    this.bumpPlayerBackFromSideWall(solid);
 
     if (this.chaseMode) {
       this.screenShake(16);
@@ -876,12 +954,27 @@ export default class GameScene extends Phaser.Scene {
       this.safeZoneEnterAt = null;
       this.safeZoneSoundArmed = true;
     }
+
+    // Visual feedback: dim the thief while inside the closet safe zone, restore on exit.
+    if (this.player && !this.hidden) {
+      if (inSafeZone && !this.playerDimmed) {
+        this.playerDimmed = true;
+        this.tweens.killTweensOf(this.player);
+        this.tweens.add({ targets: this.player, alpha: 0.65, duration: 140, ease: 'Sine.out' });
+      } else if (!inSafeZone && this.playerDimmed) {
+        this.playerDimmed = false;
+        this.tweens.killTweensOf(this.player);
+        this.tweens.add({ targets: this.player, alpha: 1, duration: 140, ease: 'Sine.out' });
+      }
+    }
+
     this.wasInSafeZone = inSafeZone;
   }
 
   resetOwnerToSleep(promptText = 'The owner calmed down and went back to sleep.') {
     this.chaseMode = false;
     this.hidden = false;
+    this.hiddenSuccessfully = true;
     this.owner.state = 'sleeping';
     this.setOwnerBreathing(true);
     this.owner.setTexture('owner_sleep');
@@ -945,14 +1038,15 @@ export default class GameScene extends Phaser.Scene {
       if (this.exitPromptMode !== 'blocked') {
         this.exitPromptVisible = true;
         this.exitPromptMode = 'blocked';
-        this.updatePrompt(`Collect all items before escaping! (${this.lootCollectedCount}/${this.lootTotal})`);
+        this.updatePrompt(`Still missing loot! (${this.lootCollectedCount}/${this.lootTotal}) — Loot first, escape later!`);
+        this.onExitDenied();
       }
       return;
     }
     if (this.exitPromptMode !== 'ready') {
       this.exitPromptVisible = true;
       this.exitPromptMode = 'ready';
-      this.updatePrompt('Exit ready. Press E to leave the room.');
+      this.updatePrompt('All loot secured! Press E to escape.');
     }
     if (!Phaser.Input.Keyboard.JustDown(this.cursors.E)) {
       return;
@@ -964,26 +1058,13 @@ export default class GameScene extends Phaser.Scene {
     if (this.roomCompleted) return;
     this.roomCompleted = true;
     this.gameOver = true;
+    this.timerRunning = false;
     this.player.setVelocity(0, 0);
     this.owner.setVelocity(0, 0);
-    this.flashRed();
     this.playSfx('success', { minGap: 2000, delay: 70 });
-    this.cameras.main.fade(560, 16, 10, 10);
-    this.updatePrompt('ESCAPED! Loot secured. Perfect stealth.');
-    this.add.text(480, 308, 'ESCAPED!', {
-      fontFamily: '"Press Start 2P"',
-      fontSize: '30px',
-      color: '#fff2cc',
-      stroke: '#4b2f24',
-      strokeThickness: 6
-    }).setOrigin(0.5).setDepth(200);
-    this.add.text(480, 360, 'Loot secured.', {
-      fontFamily: '"Press Start 2P"',
-      fontSize: '12px',
-      color: '#f8e7c8',
-      stroke: '#4b2f24',
-      strokeThickness: 3
-    }).setOrigin(0.5).setDepth(200);
+    this.cameras.main.fade(600, 14, 9, 9);
+    this.updatePrompt('ESCAPED!');
+    this.time.delayedCall(620, () => this.showEscapeScreen());
   }
 
   tryHide() {
@@ -1000,6 +1081,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   addNoise(amount) {
+    this.totalNoiseAccumulated += Math.max(0, amount);
     this.noise = Phaser.Math.Clamp(this.noise + amount, 0, 1);
     if (this.noise > 0.45 && !this.chaseMode) this.updatePrompt('Uh oh. The noise meter is getting rude.');
   }
@@ -1313,12 +1395,12 @@ export default class GameScene extends Phaser.Scene {
   onCaught() {
     if (this.hidden || this.gameOver || !this.chaseMode) return;
     this.gameOver = true;
+    this.timerRunning = false;
     this.player.setVelocity(0, 0);
     this.owner.setVelocity(0, 0);
     this.updatePrompt('BUSTED! The owner caught the tiny thief.');
-    this.screenShake(120);
+    this.screenShake(140);
     this.flashRed();
-    // Funny fail sting (re-use existing sound with a goofy pitch).
     this.sound.play('fahh', { volume: 1.0, rate: 0.9, detune: -220 });
     this.add.text(480, 312, 'BUSTED!', {
       fontFamily: '"Press Start 2P"',
@@ -1327,8 +1409,146 @@ export default class GameScene extends Phaser.Scene {
       stroke: '#a51f1f',
       strokeThickness: 6
     }).setOrigin(0.5).setDepth(200);
-    this.time.delayedCall(1400, () => {
+    this.time.delayedCall(1600, () => this.showBustedScreen());
+  }
+
+  /* ===== TIMER ===== */
+  initTimer() {
+    this.timerEl = document.getElementById('timer-display');
+    this.timerWrapEl = document.getElementById('timer-wrap');
+    this.timerRunning = true;
+    this.updateTimerDisplay();
+  }
+
+  updateTimer(delta) {
+    if (!this.timerRunning || this.gameOver) return;
+    this.timerSeconds = Math.max(0, this.timerSeconds - delta / 1000);
+    this.updateTimerDisplay();
+    if (this.timerSeconds <= 30 && this.timerEl) {
+      this.timerEl.classList.add('urgent');
+      if (this.timerWrapEl) this.timerWrapEl.classList.add('panic-wrap');
+    }
+    if (this.timerSeconds <= 0 && !this.fullPanicTriggered) {
+      this.triggerFullPanicMode();
+    }
+  }
+
+  updateTimerDisplay() {
+    if (!this.timerEl) return;
+    const m = Math.floor(this.timerSeconds / 60);
+    const s = Math.floor(this.timerSeconds % 60);
+    this.timerEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  triggerFullPanicMode() {
+    this.fullPanicTriggered = true;
+    this.chaseMode = true;
+    this.chaseModeHappened = true;
+    this.owner.state = 'chase';
+    this.setOwnerBreathing(false);
+    this.owner.setTexture('owner_alert');
+    this.owner.setScale(this.ownerAlertScale);
+    this.owner.setVisible(true);
+    this.flashRed();
+    this.screenShake(40);
+    this.ownerWakeBurst('!');
+    this.playSfx('coreTransition', { minGap: 100 });
+    this.playSfx('fahh', { minGap: 800, delay: 280 });
+    this.updatePrompt("TIME'S UP! FULL PANIC — collect loot and RUN!");
+    const txt = this.add.text(480, 200, "TIME'S UP!", {
+      fontFamily: '"Press Start 2P"',
+      fontSize: '28px',
+      color: '#ff6a5f',
+      stroke: '#2a0808',
+      strokeThickness: 6
+    }).setOrigin(0.5).setDepth(200);
+    this.tweens.add({ targets: txt, alpha: 0, y: 168, duration: 2200, ease: 'Sine.out', onComplete: () => txt.destroy() });
+  }
+
+  /* ===== EXIT GLOW ===== */
+  updateExitGlow(time) {
+    if (!this.exitGlowObj) {
+      this.exitGlowObj = this.add.circle(480, 28, 68, 0xffd55c, 0)
+        .setBlendMode(Phaser.BlendModes.ADD).setDepth(38);
+    }
+    if (this.allLootCollected()) {
+      const p = 0.5 + Math.sin(time * 0.003) * 0.5;
+      this.exitGlowObj.alpha = 0.18 + p * 0.14;
+    } else {
+      this.exitGlowObj.alpha = 0;
+    }
+  }
+
+  /* ===== EXIT DENIED ===== */
+  onExitDenied() {
+    const el = document.getElementById('prompt');
+    if (!el) return;
+    el.classList.remove('deny-shake');
+    void el.offsetWidth;
+    el.classList.add('deny-shake');
+    el.addEventListener('animationend', () => el.classList.remove('deny-shake'), { once: true });
+    this.screenShake(6);
+  }
+
+  /* ===== STEALTH RANK ===== */
+  calculateRank() {
+    if (!this.chaseModeHappened && !this.fullPanicTriggered && this.totalNoiseAccumulated < 0.25) {
+      return { title: 'PERFECT THIEF 🐱', color: '#ffd86e' };
+    }
+    if (!this.chaseModeHappened && !this.fullPanicTriggered) {
+      return { title: 'CLEAN ESCAPE 🕶️', color: '#91b7ff' };
+    }
+    if (this.hiddenSuccessfully && !this.fullPanicTriggered) {
+      return { title: 'SILENT RAT 🐀', color: '#c9c2b4' };
+    }
+    if (this.fullPanicTriggered && this.chaseModeHappened) {
+      return { title: 'PANIC SURVIVOR 🏃', color: '#ff944d' };
+    }
+    return { title: 'CHAOS GOBLIN 🤌', color: '#ff6a5f' };
+  }
+
+  /* ===== ESCAPE SCREEN ===== */
+  showEscapeScreen() {
+    const rank = this.calculateRank();
+    const tLeft = Math.max(0, Math.floor(this.timerSeconds));
+    const mm = String(Math.floor(tLeft / 60)).padStart(2, '0');
+    const ss = String(tLeft % 60).padStart(2, '0');
+    const noiseLabel = this.totalNoiseAccumulated < 0.3 ? 'Low 🤫' : this.totalNoiseAccumulated < 0.8 ? 'Medium 😬' : 'HIGH 🔊';
+    const el = document.getElementById('end-screen');
+    document.getElementById('end-eyebrow').textContent = '— ESCAPED —';
+    const rankEl = document.getElementById('end-rank');
+    rankEl.textContent = rank.title;
+    rankEl.style.color = rank.color;
+    document.getElementById('end-stats').innerHTML = `
+      <div>⏱ Time Left: ${mm}:${ss}</div>
+      <div>🔊 Noise: ${noiseLabel}</div>
+      <div>${this.chaseModeHappened ? '⚠️ Chase: YES' : '✅ Chase: NEVER'}</div>
+      <div>${this.fullPanicTriggered ? '🚨 Timed Out' : '🎯 Escaped in Time'}</div>
+    `;
+    el.classList.remove('hidden');
+    document.getElementById('end-replay-btn').onclick = () => {
+      el.classList.add('hidden');
       this.scene.restart();
-    });
+    };
+  }
+
+  /* ===== BUSTED SCREEN ===== */
+  showBustedScreen() {
+    const noiseLabel = this.totalNoiseAccumulated < 0.5 ? 'Medium 😬' : 'Extremely HIGH 🔊';
+    const el = document.getElementById('end-screen');
+    document.getElementById('end-eyebrow').textContent = '— BUSTED —';
+    const rankEl = document.getElementById('end-rank');
+    rankEl.textContent = 'CAUGHT RED-HANDED 😤';
+    rankEl.style.color = '#ff6a5f';
+    document.getElementById('end-stats').innerHTML = `
+      <div>🔊 Noise Generated: ${noiseLabel}</div>
+      <div>💀 The owner got ya.</div>
+      <div>Better luck next time...</div>
+    `;
+    el.classList.remove('hidden');
+    document.getElementById('end-replay-btn').onclick = () => {
+      el.classList.add('hidden');
+      this.scene.restart();
+    };
   }
 }
