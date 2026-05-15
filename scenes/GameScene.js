@@ -9,8 +9,19 @@ export default class GameScene extends Phaser.Scene {
     this.gameOver = false;
     this.lastFootstepAt = 0;
     this.lastBottleAt = 0;
-    this.lastAlertAt = 0;
+    this.wallBumpArmed = true;
     this.bottleCollected = false;
+    this.lootItems = [];
+    this.lootCollectedCount = 0;
+    this.lootTotal = 0;
+    this.ownerStuckMs = 0;
+    this.ownerLastPos = { x: 0, y: 0 };
+    this.ownerDetourUntil = 0;
+    this.ownerDetourDir = new Phaser.Math.Vector2(0, 0);
+    this.playerSafeAlpha = 1;
+    this.safeZoneSoundArmed = true;
+    this.lastStirAt = 0;
+    this.debugWallsEnabled = false;
   }
 
   preload() {
@@ -25,7 +36,13 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('closet_src', 'assets/furniture/closet.png');
     this.load.image('desk_src', 'assets/furniture/desk.png');
     this.load.image('chair_src', 'assets/furniture/chair.png');
+    this.load.image('books_src', 'assets/furniture/books.png');
+    this.load.image('lamp_src', 'assets/furniture/lamp.png');
+    this.load.image('plant_src', 'assets/furniture/plant.png');
     this.load.image('bottle_src', 'assets/props/bottle.png');
+    this.load.image('gem_src', 'assets/props/gem.png');
+    this.load.image('gold_src', 'assets/props/gold.png');
+    this.load.image('key_src', 'assets/props/key.png');
     this.load.audio('footstep', 'assets/sounds/footstep.mp3');
     this.load.audio('fahh', 'assets/sounds/fahh.mp3');
     this.load.audio('enter', 'assets/sounds/enter.mp3');
@@ -33,6 +50,7 @@ export default class GameScene extends Phaser.Scene {
     this.load.audio('coreTransition', 'assets/sounds/core_transition.mp3');
     this.load.audio('out', 'assets/sounds/out.mp3');
     this.load.audio('safe', 'assets/sounds/safe.mp3');
+    this.load.audio('success', 'assets/sounds/transfer.mp3');
   }
 
   create() {
@@ -42,14 +60,26 @@ export default class GameScene extends Phaser.Scene {
     this.gameOver = false;
     this.lastFootstepAt = 0;
     this.lastBottleAt = 0;
-    this.lastAlertAt = 0;
+    this.wallBumpArmed = true;
     this.bottleCollected = false;
+    this.lootItems = [];
+    this.lootCollectedCount = 0;
+    this.lootTotal = 0;
+    this.ownerStuckMs = 0;
+    this.ownerLastPos = { x: 0, y: 0 };
+    this.ownerDetourUntil = 0;
+    this.ownerDetourDir = new Phaser.Math.Vector2(0, 0);
+    this.playerSafeAlpha = 1;
+    this.safeZoneSoundArmed = true;
+    this.lastStirAt = 0;
     this.safeZoneEnterAt = null;
     this.wasInSafeZone = false;
     this.safeZoneCalmMs = 5000;
     this.exitUnlocked = false;
     this.roomCompleted = false;
     this.exitPromptVisible = false;
+    this.exitPromptMode = '';
+    this.debugWallsEnabled = new URLSearchParams(window.location.search).has('debugWalls');
 
     this.createTextures();
     this.createRoom();
@@ -73,7 +103,13 @@ export default class GameScene extends Phaser.Scene {
     this.prepareVisualTexture('closet_src', 'closet');
     this.prepareVisualTexture('desk_src', 'desk');
     this.prepareVisualTexture('chair_src', 'chair');
+    this.prepareVisualTexture('books_src', 'books');
+    this.prepareVisualTexture('lamp_src', 'lamp');
+    this.prepareVisualTexture('plant_src', 'plant');
     this.prepareVisualTexture('bottle_src', 'bottle');
+    this.prepareVisualTexture('gem_src', 'gem');
+    this.prepareVisualTexture('gold_src', 'gold');
+    this.prepareVisualTexture('key_src', 'key');
   }
 
   prepareVisualTexture(sourceKey, targetKey, options = {}) {
@@ -167,6 +203,51 @@ export default class GameScene extends Phaser.Scene {
     return texture;
   }
 
+  createLootTexture(targetKey, kind) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 24;
+    canvas.height = 24;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const drawPx = (x, y, w, h, color) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, w, h);
+    };
+
+    if (kind === 'book') {
+      drawPx(5, 4, 14, 16, '#394f8a');
+      drawPx(6, 5, 12, 14, '#5e79c3');
+      drawPx(7, 6, 10, 12, '#d9e5ff');
+      drawPx(11, 5, 1, 14, '#2c3d6b');
+      drawPx(9, 8, 5, 1, '#7da2ff');
+      drawPx(9, 11, 5, 1, '#7da2ff');
+    } else if (kind === 'gem') {
+      drawPx(8, 3, 8, 1, '#fff0a6');
+      drawPx(7, 4, 10, 1, '#ffd55b');
+      drawPx(6, 5, 12, 1, '#d79c26');
+      drawPx(5, 6, 14, 1, '#c2831e');
+      drawPx(4, 7, 16, 4, '#e5b23e');
+      drawPx(5, 11, 14, 1, '#c2831e');
+      drawPx(6, 12, 12, 1, '#d79c26');
+      drawPx(7, 13, 10, 1, '#ffd55b');
+      drawPx(8, 14, 8, 1, '#fff0a6');
+      drawPx(10, 8, 4, 8, '#ffdf7a');
+      drawPx(9, 9, 2, 2, '#fff7cf');
+    }
+
+    if (this.textures.exists(targetKey)) {
+      this.textures.remove(targetKey);
+    }
+    const texture = this.textures.createCanvas(targetKey, canvas.width, canvas.height);
+    texture.context.clearRect(0, 0, canvas.width, canvas.height);
+    texture.context.drawImage(canvas, 0, 0);
+    texture.refresh();
+    texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    return texture;
+  }
+
   createRoom() {
     const w = 960, h = 640;
     this.add.image(0, 0, 'room_bg').setOrigin(0).setScale(w / 1536, h / 1024).setDepth(-50);
@@ -183,43 +264,91 @@ export default class GameScene extends Phaser.Scene {
       this.dustGroup.add(dust);
     }
 
-    this.walls = this.physics.add.staticGroup();
-    const solids = [
-      [480, 46, 888, 32],
-      [480, 594, 888, 32],
-      [46, 320, 32, 548],
-      [914, 320, 32, 548],
-      [332, 94, 252, 24],
-      [628, 94, 252, 24]
-    ];
-    solids.forEach(([x, y, w2, h2]) => {
-      const wall = this.add.rectangle(x, y, w2, h2, 0x000000, 0).setDepth(2);
+    this.roomWalls = this.physics.add.staticGroup();
+    const addWall = (x, y, w2, h2) => {
+      const alpha = this.debugWallsEnabled ? 0.22 : 0;
+      const wall = this.add.rectangle(x, y, w2, h2, 0xff3b3b, alpha).setDepth(2);
+      if (this.debugWallsEnabled) {
+        wall.setStrokeStyle(2, 0xffffff, 0.35);
+      }
       this.physics.add.existing(wall, true);
       wall.body.setSize(w2, h2);
       wall.body.updateFromGameObject();
-      this.walls.add(wall);
-    });
-    this.wallHint = this.add.rectangle(480, 94, 420, 14, 0x000000, 0).setDepth(2);
-    this.physics.add.existing(this.wallHint, true);
-    this.wallHint.body.setSize(420, 14);
-    this.wallHint.body.updateFromGameObject();
+      this.roomWalls.add(wall);
+      return wall;
+    };
+    addWall(216, 40, 384, 26);
+    addWall(480, 40, 144, 26);
+    addWall(744, 40, 384, 26);
+    addWall(24, 320, 28, 592);
+    // Right and bottom walls strengthened to fully contain movement.
+    addWall(952, 320, 56, 592);
+    addWall(480, 636, 960, 48);
 
-    this.bed = this.physics.add.staticImage(748, 214, 'bed').setScale(0.25).refreshBody();
-    this.closet = this.physics.add.staticImage(846, 304, 'closet').setScale(0.23).refreshBody();
-    this.desk = this.physics.add.staticImage(178, 250, 'desk').setScale(0.26).refreshBody();
-    this.chair = this.physics.add.staticImage(186, 344, 'chair').setScale(0.22).refreshBody();
-    this.bottle = this.physics.add.staticImage(708, 384, 'bottle').setScale(0.12).refreshBody();
-    this.bottleShadow = this.add.ellipse(708, 394, 26, 12, 0x000000, 0.18).setDepth(16);
-    this.safeZoneRect = new Phaser.Geom.Rectangle(802, 244, 126, 132);
-    this.exitZone = new Phaser.Geom.Rectangle(424, 28, 112, 86);
-    this.safeZoneBlock = this.physics.add.staticImage(852, 304, 'bottle').setVisible(false);
-    this.safeZoneBlock.setDisplaySize(104, 128);
-    this.safeZoneBlock.refreshBody();
+    // Collision obstacles (furniture) live in one group for consistency.
+    this.obstacles = this.physics.add.staticGroup();
+    const addObstacle = (x, y, w2, h2) => {
+      const box = this.add.rectangle(x, y, w2, h2, 0x000000, 0).setDepth(2);
+      this.physics.add.existing(box, true);
+      box.body.setSize(w2, h2);
+      box.body.updateFromGameObject();
+      this.obstacles.add(box);
+      return box;
+    };
 
-    this.bedShadow = this.add.ellipse(748, 288, 276, 88, 0x000000, 0.14).setDepth(13);
-    this.closetShadow = this.add.ellipse(846, 372, 146, 78, 0x000000, 0.12).setDepth(15);
-    this.deskShadow = this.add.ellipse(178, 318, 208, 66, 0x000000, 0.12).setDepth(14);
-    this.chairShadow = this.add.ellipse(186, 394, 88, 40, 0x000000, 0.1).setDepth(15);
+    // Composition: left workstation, open center, right tension zone.
+    // Left = cozy work area (tight + organized).
+    // Nudge the workstation slightly right to create a tighter left lane and a clearer mid route.
+    this.desk = this.add.image(230, 246, 'desk').setScale(0.27).setDepth(20);
+    this.chair = this.add.image(242, 350, 'chair').setScale(0.25).setDepth(19);
+    // Desk-top props: keep them visually "on the desk", not stacking over the chair lane.
+    this.lamp = this.add.image(170, 214, 'lamp').setScale(0.20).setDepth(21);
+    this.books = this.add.image(296, 218, 'books').setScale(0.20).setDepth(21);
+    this.plant = this.add.image(116, 178, 'plant').setScale(0.22).setDepth(21);
+
+    // Right = risk / tension zone (owner + bed + safe closet).
+    this.bed = this.add.image(744, 214, 'bed').setScale(0.26).setDepth(20);
+    const closetX = 846;
+    const closetY = 440;
+    this.closet = this.add.image(closetX, closetY, 'closet').setScale(0.24).setDepth(20);
+
+    // Fair collision rectangles (smaller than the art).
+    // Keep center mostly open; only major furniture blocks movement.
+    addObstacle(230, 266, 170, 70); // desk footprint
+    addObstacle(252, 370, 92, 60);  // chair body (wider to force routing)
+    addObstacle(744, 258, 190, 86); // bed footprint
+    addObstacle(116, 186, 44, 44);  // plant pot
+
+    // Bottle stays a loot item (no physics body needed).
+    // Put it near the right lane (tempting, but not blocking the central rug).
+    // Bottle: place near the bed lane so the bed footprint forces a careful approach.
+    this.bottle = this.add.image(650, 416, 'bottle').setScale(0.13).setDepth(22);
+    this.bottleShadow = this.add.ellipse(this.bottle.x, this.bottle.y + 10, 26, 12, 0x000000, 0.18).setDepth(16);
+
+    // Safe zone follows closet placement (centered).
+    this.safeZoneRect = new Phaser.Geom.Rectangle(closetX - 77, closetY - 78, 154, 156);
+    this.exitZone = new Phaser.Geom.Rectangle(408, 56, 144, 96);
+    const safeBlockMargin = 14;
+    const safeBlockW = this.safeZoneRect.width + safeBlockMargin * 2;
+    const safeBlockH = this.safeZoneRect.height + safeBlockMargin * 2;
+    this.safeZoneBlock = this.add.rectangle(this.safeZoneRect.centerX, this.safeZoneRect.centerY, safeBlockW, safeBlockH, 0x000000, 0).setDepth(2);
+    this.physics.add.existing(this.safeZoneBlock, true);
+    this.safeZoneBlock.body.setSize(safeBlockW, safeBlockH);
+    this.safeZoneBlock.body.updateFromGameObject();
+    this.safeZoneShade = this.add.rectangle(
+      this.safeZoneRect.centerX,
+      this.safeZoneRect.centerY,
+      this.safeZoneRect.width + 22,
+      this.safeZoneRect.height + 22,
+      0x000000,
+      0.10
+    ).setDepth(12);
+    this.safeZoneShade.setBlendMode(Phaser.BlendModes.MULTIPLY);
+
+    this.bedShadow = this.add.ellipse(this.bed.x, this.bed.y + 78, 276, 88, 0x000000, 0.14).setDepth(13);
+    this.closetShadow = this.add.ellipse(closetX, closetY + 74, 162, 88, 0x000000, 0.12).setDepth(15);
+    this.deskShadow = this.add.ellipse(this.desk.x, this.desk.y + 70, 208, 66, 0x000000, 0.12).setDepth(14);
+    this.chairShadow = this.add.ellipse(this.chair.x, this.chair.y + 44, 96, 44, 0x000000, 0.1).setDepth(15);
 
     this.ownerAlertScale = 0.28;
     this.exitLabel = this.add.text(480, 18, 'EXIT', {
@@ -228,38 +357,130 @@ export default class GameScene extends Phaser.Scene {
       color: '#ffd55c',
       stroke: '#241c18',
       strokeThickness: 4
-    }).setOrigin(0.5).setDepth(40);
-    this.bottleRing = this.add.circle(708, 384, 22, 0xff4d46, 0).setStrokeStyle(3, 0xff6a5e, 1).setDepth(17);
-    this.closetRing = this.add.rectangle(846, 304, 94, 116, 0x000000, 0).setStrokeStyle(3, 0xffd655, 1).setDepth(17);
-    this.hideLabel = this.add.text(902, 318, 'HIDE\nSPOT', {
+    }).setOrigin(0.5).setDepth(40).setShadow(0, 2, '#1f120f', 3, true, true);
+    this.bottleGlow = this.add.circle(this.bottle.x, this.bottle.y, 46, 0xff7a69, 0.18).setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
+    this.bottleRing = this.add.circle(this.bottle.x, this.bottle.y, 22, 0xff5f58, 0.0).setDepth(17);
+    this.closetGlow = this.add.circle(this.closet.x, this.closet.y, 88, 0xffef7a, 0.22).setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
+    this.closetRing = this.add.rectangle(this.closet.x, this.closet.y, 128, 156, 0xfff0a0, 0.18).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
+    this.hideLabelOffsetX = 20;
+    this.hideLabelOffsetY = 50; // relative to closet top
+    const closetBounds = this.closet.getBounds();
+    this.hideLabel = this.add.text(closetBounds.centerX + this.hideLabelOffsetX, closetBounds.top + this.hideLabelOffsetY, 'HIDE\nSPOT', {
       fontFamily: '"Press Start 2P"',
-      fontSize: '12px',
-      color: '#ffd55c',
+      fontSize: '11px',
+      color: '#fff0b8',
       stroke: '#241c18',
       strokeThickness: 4,
       align: 'center'
-    }).setOrigin(0, 0.5).setDepth(41);
+    }).setOrigin(0.5, 1).setDepth(41).setShadow(0, 2, '#2e1c10', 3, true, true);
 
-    this.physics.world.setBounds(48, 48, 864, 544);
+    this.createLootItems();
+    this.physics.world.setBounds(0, 0, 960, 640);
+  }
+
+  createLootItems() {
+    const makeGlow = (x, y, color, alpha, depth = 16, r = 22) => this.add.circle(x, y, r, color, alpha).setBlendMode(Phaser.BlendModes.ADD).setDepth(depth);
+    const makeRing = (x, y, color, alpha, w = 18, h = 18, depth = 17) => this.add.ellipse(x, y, w, h, color, alpha).setBlendMode(Phaser.BlendModes.ADD).setDepth(depth);
+    const makeShadow = (x, y, w, h, alpha = 0.16, depth = 15) => this.add.ellipse(x, y, w, h, 0x000000, alpha).setDepth(depth);
+
+    const bottleItem = {
+      id: 'bottle',
+      name: 'Bottle',
+      sprite: this.bottle,
+      glow: this.bottleGlow,
+      ring: this.bottleRing,
+      shadow: this.bottleShadow,
+      radius: 42,
+      noise: 0.45,
+      shake: 12,
+      prompt: 'Bottle collected.',
+      volume: 0.55
+    };
+
+    // Loot spread: gold easy (left), key important (near exit route), gem risky (near bed/owner).
+    const lootScale = 0.22;
+    // Easy gold: tucked behind the chair/desk corner so you must route around furniture.
+    const goldSprite = this.add.image(328, 360, 'gold').setScale(lootScale).setDepth(22);
+    const goldShadow = makeShadow(328, 372, 22, 10, 0.12, 17);
+    const goldGlow = makeGlow(328, 360, 0xffd56d, 0.14, 17, 20);
+    const goldRing = makeRing(328, 360, 0xffe498, 0.08, 20, 16, 18);
+
+    // Key: on the desk (no floating under the top wall), still encourages left-side visit.
+    const keySprite = this.add.image(278, 208, 'key').setScale(lootScale).setDepth(23);
+    const keyShadow = makeShadow(278, 220, 22, 10, 0.12, 17);
+    const keyGlow = makeGlow(278, 208, 0x91b7ff, 0.14, 17, 20);
+    const keyRing = makeRing(278, 208, 0xbcd3ff, 0.08, 20, 16, 18);
+
+    // Risky loot: gem beside the bed/owner area.
+    const gemSprite = this.add.image(816, 276, 'gem').setScale(lootScale).setDepth(23);
+    const gemShadow = makeShadow(816, 288, 22, 10, 0.12, 17);
+    const gemGlow = makeGlow(816, 276, 0xff9452, 0.14, 17, 20);
+    const gemRing = makeRing(816, 276, 0xffc09a, 0.08, 20, 16, 18);
+
+    this.lootItems = [bottleItem];
+    this.lootItems.push(
+      {
+        id: 'gold',
+        name: 'Gold',
+        sprite: goldSprite,
+        glow: goldGlow,
+        ring: goldRing,
+        shadow: goldShadow,
+        radius: 34,
+        noise: 0.02,
+        shake: 6,
+        prompt: 'Gold collected.',
+        volume: 0.45
+      },
+      {
+        id: 'key',
+        name: 'Key',
+        sprite: keySprite,
+        glow: keyGlow,
+        ring: keyRing,
+        shadow: keyShadow,
+        radius: 34,
+        noise: 0.04,
+        shake: 6,
+        prompt: 'Key obtained.',
+        volume: 0.45
+      },
+      {
+        id: 'gem',
+        name: 'Gem',
+        sprite: gemSprite,
+        glow: gemGlow,
+        ring: gemRing,
+        shadow: gemShadow,
+        radius: 34,
+        noise: 0.06,
+        shake: 6,
+        prompt: 'Gem secured.',
+        volume: 0.45
+      }
+    );
+    this.lootTotal = this.lootItems.length;
+    this.lootCollectedCount = 0;
+    this.updateLootUI();
   }
 
   createPlayer() {
     this.playerShadow = this.add.ellipse(480, 372, 28, 12, 0x000000, 0.22).setDepth(29);
-    this.player = this.physics.add.sprite(480, 360, 'thief_idle');
-    this.player.setCollideWorldBounds(true);
+    this.player = this.physics.add.sprite(480, 520, 'thief_idle');
     this.player.setSize(38, 56).setOffset(14, 20);
     this.player.body.enable = true;
-    this.player.speed = 150;
-    this.player.runSpeed = 220;
+    this.player.speed = 180;
+    this.player.runSpeed = 260;
     this.player.noiseSource = 0;
     this.playerDisplayScale = 0.18;
     this.player.setScale(this.playerDisplayScale);
     this.player.setDepth(30);
-    this.playerFacing = 'down';
     this.playerShadow.setDepth(29);
-    this.physics.add.collider(this.player, this.walls, this.onPlayerWallContact, null, this);
-    this.physics.add.collider(this.player, this.wallHint, this.onPlayerWallContact, null, this);
-    this.physics.add.collider(this.player, [this.bed, this.desk, this.chair, this.bottle]);
+    this.player.setCollideWorldBounds(true);
+    this.physics.add.collider(this.player, this.roomWalls, this.onPlayerWallContact, null, this);
+    if (this.obstacles) {
+      this.physics.add.collider(this.player, this.obstacles);
+    }
   }
 
   createOwner() {
@@ -271,31 +492,27 @@ export default class GameScene extends Phaser.Scene {
     this.owner.setVisible(true);
     this.owner.setScale(0.25);
     this.owner.setDepth(21);
-    this.physics.add.collider(this.owner, this.walls);
-    this.physics.add.collider(this.owner, this.wallHint);
-    this.physics.add.collider(this.owner, [this.bed, this.closet, this.desk, this.chair, this.bottle, this.safeZoneBlock]);
+    this.owner.setCollideWorldBounds(true);
+    this.physics.add.collider(this.owner, this.roomWalls);
+    if (this.obstacles) {
+      this.physics.add.collider(this.owner, this.obstacles);
+    }
+    this.physics.add.collider(this.owner, this.safeZoneBlock);
     this.physics.add.overlap(this.player, this.owner, () => this.onCaught());
   }
 
   createUI() {
-    this.uiPanel = this.add.rectangle(12, 12, 936, 72, 0x1a1110, 0.58).setOrigin(0).setStrokeStyle(2, 0x8e6244, 1);
-    this.uiPanel.setDepth(49);
-    this.add.text(28, 22, 'MEME PANIC STEALTH', {
-      fontFamily: '"Press Start 2P"',
-      fontSize: '17px',
-      color: '#fff0d8',
-      stroke: '#37211a',
-      strokeThickness: 5
-    }).setScrollFactor(0).setDepth(50);
-    this.add.text(28, 48, 'tiny thief training room', {
-      fontFamily: '"Press Start 2P"',
-      fontSize: '9px',
-      color: '#d9b48a'
-    }).setDepth(50);
+    this.promptEl = document.getElementById('prompt');
+    this.noiseFillEl = document.getElementById('noise-fill');
+    this.noiseValueEl = document.getElementById('noise-value');
+    this.lootCountEl = document.getElementById('loot-count');
+    this.lootFillEl = document.getElementById('loot-fill');
+    this.objectiveStatusEl = document.getElementById('objective-status');
     this.flash = this.add.rectangle(0, 0, 960, 640, 0xff3b3b, 0).setOrigin(0).setDepth(100);
     this.vignette = this.add.rectangle(0, 0, 960, 640, 0x000000, 0.18).setOrigin(0).setDepth(99);
     this.vignette.setStrokeStyle(0, 0);
     this.vignette.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    this.updateLootUI();
   }
 
   bindInput() {
@@ -310,27 +527,27 @@ export default class GameScene extends Phaser.Scene {
       pickup: this.sound.add('pickup', { volume: 0.55 }),
       coreTransition: this.sound.add('coreTransition', { volume: 0.75 }),
       out: this.sound.add('out', { volume: 0.6 }),
-      safe: this.sound.add('safe', { volume: 0.5 })
+      safe: this.sound.add('safe', { volume: 0.5 }),
+      success: this.sound.add('success', { volume: 0.85 })
     };
   }
 
   setupPolish() {
     this.time.delayedCall(80, () => this.cameras.main.flash(120, 255, 240, 210));
-    this.idleTweens = [
-      this.tweens.add({ targets: this.bottle, y: '+=2', duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.inOut' }),
-      this.tweens.add({ targets: this.chair, y: '+=1.2', duration: 1900, yoyo: true, repeat: -1, ease: 'Sine.inOut' })
-    ];
+    this.tweens.add({ targets: this.bottle, y: '+=2', duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    this.tweens.add({ targets: this.chair, y: '+=1.2', duration: 1900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     this.ownerBobTween = this.tweens.add({ targets: this.owner, y: '+=1.2', duration: 2400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     this.ownerPulseTween = this.tweens.add({ targets: this.owner, scaleX: 0.102, scaleY: 0.098, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     this.setOwnerBreathing(true);
-    this.promptGlow = null;
   }
 
   update(time, delta) {
     if (this.gameOver) return;
     this.handlePlayer(delta);
+    this.updateWallBumpArming();
     this.handleBottleNoise(time);
     this.handleOwner(delta);
+    this.updateSuspicion(delta);
     this.updateMovementAudio(time);
     this.updateNoiseUI();
     this.updateSafeZoneTransition(time);
@@ -338,6 +555,26 @@ export default class GameScene extends Phaser.Scene {
     this.checkExitInteraction();
     this.updateAmbientMotion(time);
     this.updatePlayerReadability();
+    this.updatePlayerSafeZoneVisual(delta);
+  }
+
+  updateSuspicion(delta) {
+    // Slow decay keeps tension, but prevents instant permanent panic.
+    const dt = Math.max(0, delta ?? 16) / 1000;
+    const decayPerSec = this.chaseMode ? 0.02 : 0.035;
+    this.noise = Phaser.Math.Clamp(this.noise - decayPerSec * dt, 0, 1);
+  }
+
+  updatePlayerSafeZoneVisual(delta) {
+    if (!this.player || this.hidden || this.gameOver) return;
+    const inSafe = this.isPlayerInSafeZone();
+    const target = inSafe ? 0.55 : 1.0;
+    const t = Phaser.Math.Clamp((delta ?? 16) / 1000, 0.01, 0.05);
+    // Smooth fade so it feels intentional, not flickery.
+    this.playerSafeAlpha = Phaser.Math.Linear(this.playerSafeAlpha ?? 1, target, 0.22 + t);
+    this.player.setAlpha(this.playerSafeAlpha);
+    if (this.playerOutline) this.playerOutline.setAlpha(this.playerSafeAlpha * 0.55);
+    if (this.playerShadow) this.playerShadow.setAlpha(inSafe ? 0.14 : 0.22);
   }
 
   handlePlayer(delta) {
@@ -354,37 +591,140 @@ export default class GameScene extends Phaser.Scene {
     const moving = left || right || up || down;
     const speed = this.cursors.SHIFT.isDown ? this.player.runSpeed : this.player.speed;
     const target = new Phaser.Math.Vector2(left + right, up + down).normalize().scale(moving ? speed : 0);
-    this.player.body.velocity.x = Phaser.Math.Linear(this.player.body.velocity.x, target.x, 0.24);
-    this.player.body.velocity.y = Phaser.Math.Linear(this.player.body.velocity.y, target.y, 0.24);
-    if (moving && this.cursors.SHIFT.isDown) this.addNoise(0.08);
+    this.player.body.velocity.x = Phaser.Math.Linear(this.player.body.velocity.x, target.x, 0.28);
+    this.player.body.velocity.y = Phaser.Math.Linear(this.player.body.velocity.y, target.y, 0.28);
+    // Sprinting increases suspicion gradually (time-based, not frame-based).
+    if (moving && this.cursors.SHIFT.isDown) {
+      const dt = Math.max(0, delta ?? 16) / 1000;
+      this.addNoise(0.12 * dt);
+    }
     this.player.setDrag(1000, 1000);
     this.updatePlayerAnimation({ moving, left, right, up, down });
   }
 
   handleBottleNoise(time) {
-    if (!this.bottleCollected && Phaser.Input.Keyboard.JustDown(this.cursors.E) && Phaser.Math.Distance.Between(this.player.x, this.player.y, this.bottle.x, this.bottle.y) < 40) {
-      this.bottleCollected = true;
-      this.bottle.setVisible(false);
-      this.bottle.body.enable = false;
-      this.bottleRing.setVisible(false);
-      this.bottleShadow.setVisible(false);
-      this.addNoise(0.45);
-      this.playSfx('pickup', { minGap: 180 });
-      this.flashRed();
-      this.screenShake(150);
-      this.updatePrompt('Bottle hit. The room is now extremely alerted.');
+    if (!Phaser.Input.Keyboard.JustDown(this.cursors.E) || this.hidden || this.gameOver) return;
+
+    const loot = this.getClosestLootItem(48);
+    if (loot) {
+      this.collectLootItem(loot);
       this.lastBottleAt = time;
-    }
-    const touchingBottle = !this.bottleCollected && Phaser.Math.Distance.Between(this.player.x, this.player.y, this.bottle.x, this.bottle.y) < 22;
-    if (touchingBottle && time - this.lastBottleAt > 250) {
-      this.addNoise(0.015);
-      this.screenShake(24);
-      this.lastBottleAt = time;
+      return;
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.cursors.E)) {
-      const nearCloset = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.closet.x, this.closet.y) < 54;
-      if (nearCloset) this.tryHide();
+    const nearCloset = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.closet.x, this.closet.y) < 54;
+    if (nearCloset) this.tryHide();
+  }
+
+  getClosestLootItem(range = 48) {
+    if (!this.lootItems?.length) return null;
+    let closest = null;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    this.lootItems.forEach((item) => {
+      if (!item || item.collected || !item.sprite?.visible) return;
+      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, item.sprite.x, item.sprite.y);
+      if (distance <= range && distance < closestDistance) {
+        closest = item;
+        closestDistance = distance;
+      }
+    });
+
+    return closest;
+  }
+
+  collectLootItem(item) {
+    if (!item || item.collected) return;
+    item.collected = true;
+    this.lootCollectedCount = Math.min(this.lootCollectedCount + 1, this.lootTotal);
+    this.updateLootUI();
+
+    // Safety: loot pickup must never disable player movement.
+    if (this.player?.body && !this.hidden && !this.player.body.enable) {
+      this.player.body.enable = true;
+    }
+
+    // Rewarding pickup feedback: small pop + floating text.
+    const fxX = item.sprite?.x ?? this.player.x;
+    const fxY = item.sprite?.y ?? this.player.y;
+    const floatText = this.add.text(fxX, fxY - 18, '+1 Loot', {
+      fontFamily: '"Press Start 2P"',
+      fontSize: '11px',
+      color: '#fff1c6',
+      stroke: '#3a241c',
+      strokeThickness: 4
+    }).setOrigin(0.5).setDepth(120);
+    this.tweens.add({
+      targets: floatText,
+      y: fxY - 40,
+      alpha: 0,
+      duration: 520,
+      ease: 'Sine.out',
+      onComplete: () => floatText.destroy()
+    });
+
+    if (item.sprite) {
+      const sx = item.sprite.scaleX ?? 1;
+      const sy = item.sprite.scaleY ?? 1;
+      this.tweens.add({
+        targets: item.sprite,
+        scaleX: sx * 1.18,
+        scaleY: sy * 1.18,
+        alpha: 0,
+        duration: 160,
+        yoyo: false,
+        ease: 'Back.out',
+        onComplete: () => {
+          item.sprite.setVisible(false);
+          item.sprite.setAlpha(1);
+          item.sprite.setScale(sx, sy);
+        }
+      });
+    }
+    if (item.shadow) item.shadow.setVisible(false);
+    if (item.glow) item.glow.setVisible(false);
+    if (item.ring) item.ring.setVisible(false);
+    if (item.sprite === this.bottle && this.bottle.body) {
+      this.bottle.body.enable = false;
+    }
+
+    if (item.id === 'bottle') {
+      this.bottleCollected = true;
+      this.addNoise(item.noise ?? 0.45);
+      this.playSfx('pickup', { minGap: 180, volume: item.volume ?? 0.55 });
+      this.screenShake(item.shake ?? 12);
+      this.updatePrompt(`Bottle collected. (${this.lootCollectedCount}/${this.lootTotal})`);
+    } else {
+      this.addNoise(item.noise ?? 0.06);
+      this.playSfx('pickup', { minGap: 180, volume: item.volume ?? 0.45 });
+      this.screenShake(item.shake ?? 6);
+      this.updatePrompt(`${item.prompt || 'Loot secured.'} ${this.lootCollectedCount}/${this.lootTotal} collected.`);
+    }
+
+    this.updateEscapeAvailability();
+    if (this.allLootCollected()) {
+      this.updatePrompt('All loot secured. Head for the exit.');
+    }
+  }
+
+  allLootCollected() {
+    return this.lootTotal > 0 && this.lootCollectedCount >= this.lootTotal;
+  }
+
+  updateEscapeAvailability() {
+    this.exitUnlocked = this.allLootCollected();
+  }
+
+  updateWallBumpArming() {
+    if (!this.player?.body) return;
+    const touchingWall = !!(
+      this.player.body.blocked.left ||
+      this.player.body.blocked.right ||
+      this.player.body.blocked.up ||
+      this.player.body.blocked.down
+    );
+    if (!touchingWall) {
+      this.wallBumpArmed = true;
     }
   }
 
@@ -397,10 +737,69 @@ export default class GameScene extends Phaser.Scene {
       this.setOwnerBreathing(false);
       this.owner.setTexture('owner_alert');
       this.owner.setScale(this.ownerAlertScale);
-      const dir = new Phaser.Math.Vector2(this.player.x - this.owner.x, this.player.y - this.owner.y).normalize();
-      this.owner.setVelocity(dir.x * 72, dir.y * 72);
+      const inSafeZone = this.isPlayerInSafeZone();
+      const targetX = inSafeZone
+        ? Phaser.Math.Clamp(this.player.x, this.safeZoneRect.left + 10, this.safeZoneRect.right - 10)
+        : this.player.x;
+      const targetY = inSafeZone ? this.safeZoneRect.bottom + 36 : this.player.y;
+      if (inSafeZone && Phaser.Math.Distance.Between(this.owner.x, this.owner.y, targetX, targetY) < 14) {
+        this.owner.setVelocity(0, 0);
+        return;
+      }
+      const desired = new Phaser.Math.Vector2(targetX - this.owner.x, targetY - this.owner.y);
+      if (desired.lengthSq() < 0.0001) {
+        this.owner.setVelocity(0, 0);
+        return;
+      }
+      desired.normalize();
+
+      // Lightweight steering: slide along blockers and add a short detour when stuck.
+      const body = this.owner.body;
+      let steer = desired.clone();
+      if (body?.blocked?.left || body?.blocked?.right) {
+        steer.x = 0;
+        if (Math.abs(steer.y) < 0.25) steer.y = body.blocked.left ? 1 : -1;
+      }
+      if (body?.blocked?.up || body?.blocked?.down) {
+        steer.y = 0;
+        if (Math.abs(steer.x) < 0.25) steer.x = body.blocked.up ? 1 : -1;
+      }
+
+      const moved = Phaser.Math.Distance.Between(this.owner.x, this.owner.y, this.ownerLastPos.x, this.ownerLastPos.y);
+      this.ownerLastPos.x = this.owner.x;
+      this.ownerLastPos.y = this.owner.y;
+      if (moved < 0.35) this.ownerStuckMs += dt;
+      else this.ownerStuckMs = 0;
+
+      if (this.time.now < this.ownerDetourUntil) {
+        steer = steer.scale(0.35).add(this.ownerDetourDir.clone().scale(0.65));
+      } else if (this.ownerStuckMs > 380) {
+        // Pick a consistent perpendicular direction based on where the owner is relative to the safe zone.
+        const clockwise = this.owner.x < this.safeZoneRect.centerX;
+        this.ownerDetourDir = clockwise
+          ? new Phaser.Math.Vector2(-desired.y, desired.x)
+          : new Phaser.Math.Vector2(desired.y, -desired.x);
+        this.ownerDetourUntil = this.time.now + 850;
+        this.ownerStuckMs = 0;
+        steer = desired.clone().scale(0.35).add(this.ownerDetourDir.clone().scale(0.65));
+      }
+
+      if (steer.lengthSq() < 0.0001) steer = desired;
+      steer.normalize();
+      this.owner.setVelocity(steer.x * 72, steer.y * 72);
       this.owner.setVisible(true);
       return;
+    }
+
+    // Mid suspicion: owner stirs but doesn't fully panic yet.
+    if (this.noise >= 0.55 && this.noise < 0.8) {
+      const now = this.time.now;
+      if (now - (this.lastStirAt ?? 0) > 2200) {
+        this.lastStirAt = now;
+        this.ownerWakeBurst('?');
+        this.sound.play('coreTransition', { volume: 0.18, rate: 1.12, detune: 40 });
+        this.updatePrompt('Shh... the owner is stirring.');
+      }
     }
 
     if (this.noise >= 0.8) {
@@ -428,16 +827,25 @@ export default class GameScene extends Phaser.Scene {
     return this.exitZone ? Phaser.Geom.Rectangle.Contains(this.exitZone, this.player.x, this.player.y) : false;
   }
 
-  isWallAlertExempt() {
+  isWallTouchExempt() {
     return this.isPlayerInSafeZone() || this.isPlayerInExitZone();
   }
 
   onPlayerWallContact() {
-    if (this.gameOver || this.hidden || this.isWallAlertExempt()) return;
-    if (this.time.now - this.lastAlertAt < 650) return;
-    this.lastAlertAt = this.time.now;
-    this.addNoise(0.06);
-    if (!this.chaseMode) {
+    if (this.gameOver || this.hidden || this.isWallTouchExempt()) return;
+    if (!this.wallBumpArmed) return;
+    this.wallBumpArmed = false;
+
+    // Wall bumps are suspicious, but shouldn't instantly force full panic.
+    this.addNoise(0.08);
+    this.playSfx('fahh', { minGap: 180, delay: 10 });
+
+    if (this.chaseMode) {
+      this.screenShake(16);
+      return;
+    }
+
+    if (this.noise >= 0.8) {
       this.chaseMode = true;
       this.owner.state = 'chase';
       this.setOwnerBreathing(false);
@@ -445,28 +853,33 @@ export default class GameScene extends Phaser.Scene {
       this.owner.setScale(this.ownerAlertScale);
       this.owner.setVisible(true);
       this.playSfx('coreTransition', { minGap: 1200, delay: 90 });
-      this.playSfx('fahh', { minGap: 1600, delay: 120 });
       this.flashRed();
       this.screenShake(80);
       this.ownerWakeBurst();
       this.updatePrompt('Wall bump! The owner heard that.');
+    } else {
+      this.screenShake(10);
+      this.updatePrompt('Careful... wall bumps are loud.');
     }
   }
 
   updateSafeZoneTransition(time) {
     const inSafeZone = this.isPlayerInSafeZone();
-    if (inSafeZone && !this.wasInSafeZone) {
-      this.safeZoneEnterAt = time;
-      this.playSfx('safe', { minGap: 700 });
-      this.updatePrompt('Safe zone: closet. Stay hidden for a moment.');
-    }
-    if (!inSafeZone) {
+    if (inSafeZone) {
+      if (this.safeZoneSoundArmed) {
+        this.safeZoneSoundArmed = false;
+        this.safeZoneEnterAt = time;
+        this.playSfx('safe', { minGap: 700 });
+        this.updatePrompt('Safe zone: closet. Stay hidden for a moment.');
+      }
+    } else {
       this.safeZoneEnterAt = null;
+      this.safeZoneSoundArmed = true;
     }
     this.wasInSafeZone = inSafeZone;
   }
 
-  resetOwnerToSleep(promptText = 'The owner calmed down and went back to sleep.', unlockExit = true) {
+  resetOwnerToSleep(promptText = 'The owner calmed down and went back to sleep.') {
     this.chaseMode = false;
     this.hidden = false;
     this.owner.state = 'sleeping';
@@ -478,11 +891,12 @@ export default class GameScene extends Phaser.Scene {
     this.player.body.enable = true;
     this.player.setVisible(true);
     this.clearAlertEffects();
-    if (unlockExit) this.exitUnlocked = true;
+    this.updateEscapeAvailability();
     if (promptText) this.updatePrompt(promptText);
     this.playSfx('out', { minGap: 900 });
     this.safeZoneEnterAt = null;
-    this.wasInSafeZone = false;
+    this.wasInSafeZone = this.isPlayerInSafeZone();
+    this.safeZoneSoundArmed = !this.wasInSafeZone;
   }
 
   updateOwnerState(time) {
@@ -492,6 +906,16 @@ export default class GameScene extends Phaser.Scene {
       this.owner.setScale(0.25);
       this.owner.setVisible(true);
       return;
+    }
+
+    // If panic starts while the player is already in the safe zone, we still want
+    // the 5s calm-down timer to run (not only on "entry" events).
+    const inSafeZone = this.isPlayerInSafeZone();
+    if (inSafeZone && this.safeZoneEnterAt == null) {
+      this.safeZoneEnterAt = time;
+    }
+    if (!inSafeZone && this.safeZoneEnterAt != null) {
+      this.safeZoneEnterAt = null;
     }
 
     if (this.hidden && this.chaseMode) {
@@ -513,11 +937,21 @@ export default class GameScene extends Phaser.Scene {
     const inExitZone = this.isPlayerInExitZone();
     if (!inExitZone) {
       this.exitPromptVisible = false;
+      this.exitPromptMode = '';
       return;
     }
-    if (this.gameOver || !this.exitUnlocked) return;
-    if (!this.exitPromptVisible) {
+    if (this.gameOver) return;
+    if (!this.allLootCollected()) {
+      if (this.exitPromptMode !== 'blocked') {
+        this.exitPromptVisible = true;
+        this.exitPromptMode = 'blocked';
+        this.updatePrompt(`Collect all items before escaping! (${this.lootCollectedCount}/${this.lootTotal})`);
+      }
+      return;
+    }
+    if (this.exitPromptMode !== 'ready') {
       this.exitPromptVisible = true;
+      this.exitPromptMode = 'ready';
       this.updatePrompt('Exit ready. Press E to leave the room.');
     }
     if (!Phaser.Input.Keyboard.JustDown(this.cursors.E)) {
@@ -533,20 +967,29 @@ export default class GameScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     this.owner.setVelocity(0, 0);
     this.flashRed();
-    this.cameras.main.fade(450, 16, 10, 10);
-    this.updatePrompt('Room cleared. Tiny thief escaped the bedroom.');
-    this.add.text(480, 320, 'ROOM CLEARED', {
+    this.playSfx('success', { minGap: 2000, delay: 70 });
+    this.cameras.main.fade(560, 16, 10, 10);
+    this.updatePrompt('ESCAPED! Loot secured. Perfect stealth.');
+    this.add.text(480, 308, 'ESCAPED!', {
       fontFamily: '"Press Start 2P"',
-      fontSize: '26px',
+      fontSize: '30px',
       color: '#fff2cc',
       stroke: '#4b2f24',
       strokeThickness: 6
+    }).setOrigin(0.5).setDepth(200);
+    this.add.text(480, 360, 'Loot secured.', {
+      fontFamily: '"Press Start 2P"',
+      fontSize: '12px',
+      color: '#f8e7c8',
+      stroke: '#4b2f24',
+      strokeThickness: 3
     }).setOrigin(0.5).setDepth(200);
   }
 
   tryHide() {
     if (!this.chaseMode || this.hidden) return;
-    if (Phaser.Math.Distance.Between(this.player.x, this.player.y, this.closet.x, this.closet.y) < 54) {
+    const canHide = this.safeZoneRect && Phaser.Geom.Rectangle.Contains(this.safeZoneRect, this.player.x, this.player.y);
+    if (canHide) {
       this.hidden = true;
       this.player.setVisible(false);
       this.player.body.enable = false;
@@ -562,16 +1005,31 @@ export default class GameScene extends Phaser.Scene {
   }
 
   updateNoiseUI() {
-    const fill = document.getElementById('noise-fill');
-    const value = document.getElementById('noise-value');
     if (!this.noiseDisplay) this.noiseDisplay = 0;
     this.noiseDisplay = Phaser.Math.Linear(this.noiseDisplay, this.noise, 0.08);
-    if (fill) fill.style.width = `${Math.round(this.noiseDisplay * 100)}%`;
-    if (value) value.textContent = `${Math.round(this.noiseDisplay * 100)}%`;
+    if (this.noiseFillEl) this.noiseFillEl.style.width = `${Math.round(this.noiseDisplay * 100)}%`;
+    if (this.noiseValueEl) this.noiseValueEl.textContent = `${Math.round(this.noiseDisplay * 100)}%`;
+  }
+
+  updateLootUI() {
+    const total = this.lootTotal || 0;
+    const collected = Math.min(this.lootCollectedCount || 0, total);
+    const progress = total > 0 ? Math.round((collected / total) * 100) : 0;
+    if (this.lootCountEl) this.lootCountEl.textContent = `${collected}/${total}`;
+    if (this.lootFillEl) this.lootFillEl.style.width = `${progress}%`;
+    if (this.objectiveStatusEl) {
+      if (!total) {
+        this.objectiveStatusEl.textContent = 'Loot is loading...';
+      } else if (collected >= total) {
+        this.objectiveStatusEl.textContent = 'All loot secured. Head for the exit.';
+      } else {
+        this.objectiveStatusEl.textContent = `Collect every item before escaping.`;
+      }
+    }
   }
 
   updatePrompt(text) {
-    const el = document.getElementById('prompt');
+    const el = this.promptEl;
     if (!el) return;
     el.style.opacity = '0.72';
     el.style.transform = 'translateY(2px) scale(0.99)';
@@ -594,11 +1052,12 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.shake(intensity, intensity * 0.015);
   }
 
-  ownerWakeBurst() {
+  ownerWakeBurst(symbol = '!') {
     if (this.ownerWakeText) this.ownerWakeText.destroy();
-    this.ownerWakeText = this.add.text(this.owner.x + 6, this.owner.y - 18, '!', {
+    const size = symbol === '!' ? '24px' : '18px';
+    this.ownerWakeText = this.add.text(this.owner.x + 6, this.owner.y - 18, symbol, {
       fontFamily: '"Press Start 2P"',
-      fontSize: '24px',
+      fontSize: size,
       color: '#fff3a8',
       stroke: '#6b281f',
       strokeThickness: 4
@@ -628,7 +1087,10 @@ export default class GameScene extends Phaser.Scene {
   updateAmbientMotion(time) {
     const t = time * 0.001;
     this.roomGlow.alpha = 0.05 + Math.sin(t * 1.2) * 0.01;
-    this.vignette.alpha = this.chaseMode ? 0.22 : 0.16 + Math.sin(t * 0.7) * 0.008;
+    // During chase: slightly darker room + softer red pulse (less harsh).
+    const chasePulse = this.chaseMode ? (0.5 + Math.sin(t * 3.2) * 0.5) : 0;
+    this.vignette.alpha = this.chaseMode ? 0.24 : 0.16 + Math.sin(t * 0.7) * 0.008;
+    this.flash.alpha = Math.max(this.flash.alpha, this.chaseMode ? 0.02 + chasePulse * 0.03 : 0);
     this.floorShadow.alpha = 0.16 + Math.sin(t * 0.9) * 0.008;
     this.floorShadow2.alpha = 0.08 + Math.cos(t * 1.1) * 0.006;
     if (this.ownerWakeText) {
@@ -647,13 +1109,80 @@ export default class GameScene extends Phaser.Scene {
       this.bottleRing.x = this.bottle.x;
       this.bottleRing.y = this.bottle.y;
     }
+    if (this.bottleGlow) {
+      this.bottleGlow.x = this.bottle.x;
+      this.bottleGlow.y = this.bottle.y;
+    }
     if (this.closetRing) {
       this.closetRing.x = this.closet.x;
       this.closetRing.y = this.closet.y;
     }
+    if (this.closetGlow) {
+      this.closetGlow.x = this.closet.x;
+      this.closetGlow.y = this.closet.y;
+    }
+    if (this.hideLabel && this.closet) {
+      const closetBounds = this.closet.getBounds();
+      this.hideLabel.x = closetBounds.centerX + (this.hideLabelOffsetX ?? 0);
+      this.hideLabel.y = closetBounds.top + (this.hideLabelOffsetY ?? 0);
+    }
+    if (this.safeZoneShade) {
+      this.safeZoneShade.x = this.safeZoneRect.centerX;
+      this.safeZoneShade.y = this.safeZoneRect.centerY;
+      const inSafe = this.isPlayerInSafeZone() || this.hidden;
+      const base = inSafe ? 0.18 : 0.10;
+      this.safeZoneShade.alpha = base + Math.sin(t * 1.1) * 0.01;
+    }
+    if (this.lootItems?.length) {
+      this.lootItems.forEach((item, index) => {
+        if (!item || item.collected) return;
+        if (item.glow && item.sprite) {
+          item.glow.x = item.sprite.x;
+          item.glow.y = item.sprite.y;
+        }
+        if (item.ring && item.sprite) {
+          item.ring.x = item.sprite.x;
+          item.ring.y = item.sprite.y;
+        }
+        if (item.shadow && item.sprite) {
+          item.shadow.x = item.sprite.x;
+          item.shadow.y = item.sprite.y + 8;
+        }
+        const itemPulse = 0.5 + (Math.sin(t * 2.4 + index) * 0.5);
+        if (item.glow) {
+          item.glow.setScale(1 + itemPulse * 0.12);
+          item.glow.alpha = item.id === 'bottle' ? 0.12 + itemPulse * 0.12 : 0.08 + itemPulse * 0.1;
+        }
+        if (item.ring) {
+          item.ring.setScale(1 + itemPulse * 0.03);
+          item.ring.alpha = 0.08 + itemPulse * 0.12;
+        }
+      });
+    }
     if (this.playerShadow) {
+      const moving = this.player?.body ? (Math.abs(this.player.body.velocity.x) + Math.abs(this.player.body.velocity.y)) > 6 : false;
+      const bob = moving ? Math.sin(t * 10) * 1.1 : 0;
       this.playerShadow.x = this.player.x + 2;
-      this.playerShadow.y = this.player.y + 3;
+      this.playerShadow.y = this.player.y + 3 + bob;
+      this.playerShadow.scaleX = 1 + (moving ? 0.06 : 0);
+      this.playerShadow.scaleY = 1 + (moving ? 0.03 : 0);
+    }
+    const pulse = 0.5 + (Math.sin(t * 2.4) * 0.5);
+    if (this.bottleGlow) {
+      this.bottleGlow.setScale(1 + pulse * 0.14);
+      this.bottleGlow.alpha = 0.12 + pulse * 0.12;
+    }
+    if (this.closetGlow) {
+      this.closetGlow.setScale(1 + pulse * 0.10);
+      this.closetGlow.alpha = 0.12 + pulse * 0.14;
+    }
+    if (this.closetRing) {
+      this.closetRing.setScale(1 + pulse * 0.03);
+      this.closetRing.alpha = 0.12 + pulse * 0.12;
+    }
+    if (this.bottleRing) {
+      this.bottleRing.setScale(1 + pulse * 0.03);
+      this.bottleRing.alpha = 0.18 + pulse * 0.18;
     }
   }
 
@@ -682,7 +1211,6 @@ export default class GameScene extends Phaser.Scene {
         this.currentPlayerTexture = 'thief_idle';
       }
       this.player.setFlipX(false);
-      this.playerFacing = 'down';
       return;
     }
 
@@ -694,14 +1222,12 @@ export default class GameScene extends Phaser.Scene {
           this.currentPlayerTexture = 'walk_up';
         }
         this.player.setFlipX(false);
-        this.playerFacing = 'up';
       } else {
         if (this.currentPlayerTexture !== 'thief_idle') {
           this.player.setTexture('thief_idle');
           this.currentPlayerTexture = 'thief_idle';
         }
         this.player.setFlipX(false);
-        this.playerFacing = 'down';
       }
       return;
     }
@@ -714,10 +1240,8 @@ export default class GameScene extends Phaser.Scene {
 
     if (left) {
       this.player.setFlipX(false);
-      this.playerFacing = 'left';
     } else if (right) {
       this.player.setFlipX(true);
-      this.playerFacing = 'right';
     }
   }
 
@@ -791,14 +1315,20 @@ export default class GameScene extends Phaser.Scene {
     this.gameOver = true;
     this.player.setVelocity(0, 0);
     this.owner.setVelocity(0, 0);
-    this.updatePrompt('GAME OVER. The owner caught the tiny thief.');
+    this.updatePrompt('BUSTED! The owner caught the tiny thief.');
+    this.screenShake(120);
     this.flashRed();
-    this.add.text(480, 320, 'GAME OVER', {
+    // Funny fail sting (re-use existing sound with a goofy pitch).
+    this.sound.play('fahh', { volume: 1.0, rate: 0.9, detune: -220 });
+    this.add.text(480, 312, 'BUSTED!', {
       fontFamily: '"Press Start 2P"',
-      fontSize: '28px',
+      fontSize: '30px',
       color: '#fffbf2',
       stroke: '#a51f1f',
       strokeThickness: 6
     }).setOrigin(0.5).setDepth(200);
+    this.time.delayedCall(1400, () => {
+      this.scene.restart();
+    });
   }
 }
