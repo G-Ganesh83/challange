@@ -33,41 +33,37 @@ const AM = {
 
   // ── Ambient ────────────────────────────────────────────────
 
-  // Call this from MainMenuScene — hooks first-interaction unlock
+  // Called from MainMenuScene — starts ambient as soon as audio is unlocked
   startAmbientWhenReady(scene) {
     if (this._started) {
-      // Already unlocked in a previous scene — just ensure playing
+      // Already playing in a previous scene — just ensure tracks are running
       this._startTrack(scene, 'menu_music', AMBIENT_VOL, 1200);
       this._startTrack(scene, 'rain',       RAIN_VOL,    1000);
       return;
     }
 
-    // Show a subtle "tap to start" pulse on the screen,
-    // then start audio on first ANY input event
-    const unlock = () => {
-      // Remove listeners immediately
-      scene.input.off('pointerdown', unlock);
-      try { scene.input.keyboard.off('keydown', unlock); } catch(e) {}
-
-      this._started = true;
-      this._persist();
-
-      this._startTrack(scene, 'menu_music', AMBIENT_VOL, 2000);
-      this._startTrack(scene, 'rain',       RAIN_VOL,    1600);
-    };
-
-    // Attach to first user interaction
-    scene.input.once('pointerdown', unlock);
-    try { scene.input.keyboard.once('keydown', unlock); } catch(e) {}
-
-    // Also try immediately — if audio context already unlocked (e.g. after intro click)
-    scene.time.delayedCall(200, () => {
+    const tryStart = () => {
+      if (this._started) return;
       try {
         const ctx = scene.sound.context;
-        if (ctx && ctx.state === 'running' && !this._started) {
-          unlock();
+        if (ctx && ctx.state === 'running') {
+          this._started = true;
+          this._persist();
+          this._startTrack(scene, 'menu_music', AMBIENT_VOL, 1800);
+          this._startTrack(scene, 'rain',       RAIN_VOL,    1400);
+          return true;
         }
       } catch(e) {}
+      return false;
+    };
+
+    // If already unlocked globally (main.js listener fired first)
+    if (window._audioUnlocked) { tryStart(); return; }
+
+    // Poll every 100ms until context is running (fires right after first gesture)
+    const poll = scene.time.addEvent({
+      delay: 100, repeat: 60, // give up after 6s
+      callback: () => { if (tryStart()) poll.remove(); }
     });
   },
 

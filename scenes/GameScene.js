@@ -337,9 +337,10 @@ export default class GameScene extends Phaser.Scene {
       success:        this.sound.add('success',         { volume: 0.85 })
     };
 
-    // Audio manager sync
+    // Audio manager sync — keep ambient music running through gameplay
     AM.init(this);
     AM.sync(this);
+    AM.raiseAmbient(this, 800);
 
     // Mute button — top-right corner, bg audio only
     this._muteBtn = new MuteButton(this);

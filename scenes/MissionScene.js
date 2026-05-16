@@ -182,8 +182,7 @@ export default class MissionScene extends Phaser.Scene {
     this._ready = true;
 
     AM.playSfx(this, 'door_unlock', { volume: 0.6 });
-    // Fade out ambient before gameplay (GameScene has its own ambience)
-    AM.stopAmbient(this, 900);
+    // Keep ambient running into gameplay — music continues in GameScene
 
     this.time.delayedCall(400, () => {
       this.cameras.main.fadeOut(700, 0, 0, 0);

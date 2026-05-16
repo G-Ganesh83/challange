@@ -38,4 +38,48 @@ const config = {
   ]
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+// ── Global audio unlock ──────────────────────────────────────
+// Browsers block audio until a user gesture. This catches ANY
+// interaction (tap, click, key, scroll) and resumes the audio
+// context immediately — so music starts as soon as the user
+// touches anything on the page.
+(function setupAudioUnlock() {
+  const events = ['touchstart', 'touchend', 'pointerdown', 'mousedown', 'keydown'];
+  function unlock() {
+    // Resume Phaser's WebAudio context
+    try {
+      const ctx = game.sound && game.sound.context;
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().then(() => {
+          window._audioUnlocked = true;
+          // Tell AudioManager to start ambient if it hasn't yet
+          if (window._AM && !window._AM._started) {
+            const scene = game.scene.getScenes(true)[0];
+            if (scene) {
+              window._AM._started = true;
+              window._AM._persist && window._AM._persist();
+              window._AM._startTrack(scene, 'menu_music', 0.26, 1800);
+              window._AM._startTrack(scene, 'rain',       0.16, 1400);
+            }
+          }
+        });
+      } else if (ctx && ctx.state === 'running') {
+        window._audioUnlocked = true;
+        if (window._AM && !window._AM._started) {
+          const scene = game.scene.getScenes(true)[0];
+          if (scene) {
+            window._AM._started = true;
+            window._AM._persist && window._AM._persist();
+            window._AM._startTrack(scene, 'menu_music', 0.26, 1800);
+            window._AM._startTrack(scene, 'rain',       0.16, 1400);
+          }
+        }
+      }
+    } catch(e) {}
+    // Remove all listeners once unlocked
+    events.forEach(e => document.removeEventListener(e, unlock, true));
+  }
+  events.forEach(e => document.addEventListener(e, unlock, true));
+})();
