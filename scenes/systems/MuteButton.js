@@ -18,6 +18,7 @@ export default class MuteButton {
     this._ambBtn = this._makeButton({
       scene, x: baseX - 46, y: baseY, depth,
       color: '#00ffcc', colorInt: 0x00ffcc,
+      type: 'ambient',
       tipTitle: 'AMBIENT AUDIO',
       tipDesc:  'Controls rain ambience\nand background music.',
       drawIcon: (g, x, y, active) => this._drawSpeaker(g, x, y, active, 0x00ffcc),
@@ -30,6 +31,7 @@ export default class MuteButton {
     this._sfxBtn = this._makeButton({
       scene, x: baseX, y: baseY, depth,
       color: '#cc44ff', colorInt: 0xcc44ff,
+      type: 'sfx',
       tipTitle: 'SFX AUDIO',
       tipDesc:  'Controls footsteps, alerts,\ninteractions and UI sounds.',
       drawIcon: (g, x, y, active) => this._drawWave(g, x, y, active, 0xcc44ff),
@@ -90,7 +92,7 @@ export default class MuteButton {
 
   // ── Button factory ────────────────────────────────────────
 
-  _makeButton({ scene, x, y, depth, color, colorInt, tipTitle, tipDesc, drawIcon, onClick }) {
+  _makeButton({ scene, x, y, depth, color, colorInt, type, tipTitle, tipDesc, drawIcon, onClick }) {
     // Hit-area circle (invisible, interactive)
     const hitArea = scene.add.circle(x, y, 18, 0x000000, 0)
       .setDepth(depth + 2)
@@ -115,25 +117,24 @@ export default class MuteButton {
 
     // ── Tooltip ───────────────────────────────────────────────
     // Wider tooltip: title + description
-    const TIP_W = 164, TIP_H = 54;
+    const TIP_W = 170, TIP_H = 62;
     // Keep tooltip inside screen — if near right edge, shift left
     const tipX = x > 800 ? x - TIP_W + 18 : x - TIP_W / 2;
     const tipY = y + 30;
 
     const ttBg = scene.add.graphics().setDepth(depth + 10).setAlpha(0);
 
-    const ttTitle = scene.add.text(tipX + TIP_W / 2, tipY + 13, tipTitle, {
-      fontFamily: '"Courier New", monospace',
-      fontSize: '9px', color,
-      letterSpacing: 2,
-      shadow: { offsetX: 0, offsetY: 0, color, blur: 6, fill: true }
+    const ttTitle = scene.add.text(tipX + TIP_W / 2, tipY + 14, tipTitle, {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '11px', fontStyle: 'bold', color,
     }).setOrigin(0.5).setDepth(depth + 11).setAlpha(0);
 
-    const ttDesc = scene.add.text(tipX + TIP_W / 2, tipY + 30, tipDesc, {
-      fontFamily: '"Courier New", monospace',
-      fontSize: '8px', color: '#998bbb',
+    const ttDesc = scene.add.text(tipX + TIP_W / 2, tipY + 33, tipDesc, {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '10px', color: '#bbaadd',
       wordWrap: { width: TIP_W - 16 },
-      align: 'center'
+      align: 'center',
+      lineSpacing: 2,
     }).setOrigin(0.5).setDepth(depth + 11).setAlpha(0);
 
     const drawTooltip = () => {
@@ -160,7 +161,7 @@ export default class MuteButton {
 
     hitArea.on('pointerover', () => {
       hovered = true;
-      const active = this._isActive(onClick);
+      const active = this._isActive(type);
       drawBg(true, active);
       drawIcon(iconGfx, x, y, active);
       scene.tweens.add({ targets: [hitArea], scaleX: 1.12, scaleY: 1.12, duration: 80, ease: 'Power2' });
@@ -169,7 +170,7 @@ export default class MuteButton {
 
     hitArea.on('pointerout', () => {
       hovered = false;
-      const active = this._isActive(onClick);
+      const active = this._isActive(type);
       drawBg(false, active);
       scene.tweens.add({ targets: [hitArea], scaleX: 1, scaleY: 1, duration: 100, ease: 'Power2' });
       hideTip();
@@ -185,15 +186,11 @@ export default class MuteButton {
       });
     });
 
-    return { bg, iconGfx, hitArea, drawBg, drawIcon, ttBg, ttTitle, ttDesc, x, y, colorInt, onClick };
+    return { bg, iconGfx, hitArea, drawBg, drawIcon, ttBg, ttTitle, ttDesc, x, y, colorInt, type, onClick };
   }
 
-  _isActive(onClick) {
-    // Infer active state from whether this is ambient or sfx btn
-    if (onClick === this._ambBtn?.onClick || this._ambBtn?.onClick === onClick) {
-      return !AM.ambientMuted;
-    }
-    return !AM.sfxMuted;
+  _isActive(type) {
+    return type === 'ambient' ? !AM.ambientMuted : !AM.sfxMuted;
   }
 
   _updateVisuals() {
