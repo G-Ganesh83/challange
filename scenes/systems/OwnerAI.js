@@ -300,6 +300,11 @@ export default class OwnerAI {
     this._syncOwnerBody();
     s.owner.setVisible(true);
     s.owner.setVelocity(0, 0);
+    if (s.ownerSleepPosition) {
+      s.owner.body?.reset(s.ownerSleepPosition.x, s.ownerSleepPosition.y);
+      s.owner.setPosition(s.ownerSleepPosition.x, s.ownerSleepPosition.y);
+      s.owner.setVelocity(0, 0);
+    }
     s.player.body.enable = true;
     s.player.setVisible(true);
     s.clearAlertEffects();

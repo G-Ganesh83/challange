@@ -46,6 +46,7 @@ export default class Room2Scene extends Phaser.Scene {
     this.catchContactMs     = 0;
     this.lastRunNoiseAt     = 0;
     this.toastTimer         = null;
+    this.roomIntroActive    = false;
   }
 
   /* ───────────────────────── PRELOAD ───────────────────────── */
@@ -81,6 +82,7 @@ export default class Room2Scene extends Phaser.Scene {
     safeAud('fahh',           'assets/sounds/fahh.mp3');
     safeAud('enter',          'assets/sounds/enter.mp3');
     safeAud('pickup',         'assets/sounds/pickup.mp3');
+    safeAud('door_unlock',    'assets/sounds/door_unlock.mp3');
     safeAud('coreTransition', 'assets/sounds/core_transition.mp3');
     safeAud('out',            'assets/sounds/out.mp3');
     safeAud('safe',           'assets/sounds/safe.mp3');
@@ -95,6 +97,7 @@ export default class Room2Scene extends Phaser.Scene {
     document.getElementById('end-screen')?.classList.add('hidden');
     document.getElementById('message-toast')?.classList.add('hidden');
     this.input.enabled = true;
+    if (this.input.keyboard) this.input.keyboard.enabled = true;
     this.physics.world.resume();
 
     // Reset all flags
@@ -123,6 +126,7 @@ export default class Room2Scene extends Phaser.Scene {
     this.debugHitboxesEnabled = new URLSearchParams(window.location.search).has('debugHitboxes');
     this.catchContactMs     = 0;
     this.lastRunNoiseAt     = 0;
+    this.roomIntroActive    = true;
 
     // Systems
     this.noiseSystem     = new NoiseSystem(this);
@@ -143,6 +147,7 @@ export default class Room2Scene extends Phaser.Scene {
     this._setupPolish();
     this.physics.world.resume();
     this.input.enabled = true;
+    if (this.input.keyboard) this.input.keyboard.enabled = true;
 
     // Owner AI — harder config for Room 2
     this.ownerAI = new OwnerAI(this, {
@@ -160,11 +165,16 @@ export default class Room2Scene extends Phaser.Scene {
       patrolSpeed   : 44,
     });
 
+    this.player.setVelocity(0, 0);
+    this.owner.setVelocity(0, 0);
     this.timerSystem.start(120);
-    this.updatePrompt('Midnight heist. RGB lights don\'t lie — stay quiet.');
+    this.updatePrompt('New apartment. Stay quiet.');
 
-    // Brief flash-in for dramatic effect
-    this.time.delayedCall(80, () => this.cameras.main.flash(160, 0, 20, 40));
+    this.cameras.main.fadeIn(850, 0, 0, 0);
+    this.time.delayedCall(760, () => {
+      this.roomIntroActive = false;
+      this.updatePrompt('New apartment. Stay quiet.', 'info');
+    });
   }
 
   _cleanupSceneState() {
@@ -293,8 +303,8 @@ export default class Room2Scene extends Phaser.Scene {
       wall.body.setSize(w2,h2); wall.body.updateFromGameObject();
       this.roomWalls.add(wall); this.wallColliders.push(wall); return wall;
     };
-    // Top wall — gap for exit in top-center
-    addWall(216,40,384,26); addWall(480,40,144,26); addWall(744,40,384,26);
+    // Top wall — leave the center open for the exit door.
+    addWall(216,40,384,26); addWall(744,40,384,26);
     // Left wall
     addWall(40,216,26,384); addWall(40,480,26,144); addWall(40,576,26,48);
     // Right wall
@@ -304,41 +314,41 @@ export default class Room2Scene extends Phaser.Scene {
 
     // ── FURNITURE SPRITES (reference image layout) ────────────
     // TOP-LEFT: gaming desk + chair
-    this.cpDesk = this.add.image(230, 240, 'r2t_cpdesk').setScale(0.28).setDepth(20);
-    this.gamingChair = this.add.image(170, 340, 'r2t_chair').setScale(0.22).setDepth(19);
+    this.cpDesk = this.add.image(230, 230, 'r2t_cpdesk').setScale(0.28).setDepth(20);
+    this.gamingChair = this.add.image(370, 240, 'r2t_chair').setScale(0.22).setDepth(19).setAngle(-10);
 
     // TOP-CENTER: small shelf/gmg table (bottom-center position)
-    this.gmgTable = this.add.image(480, 490, 'r2t_gmgtable').setScale(0.22).setDepth(20);
+    this.gmgTable = this.add.image(340, 550, 'r2t_gmgtable').setScale(0.22).setDepth(20);
 
     // TOP-RIGHT: wardrobe (SAFE ZONE) — ref shows it right of center-right
     const wardrobeX = 820, wardrobeY = 150;
     this.wardrobe = this.add.image(wardrobeX, wardrobeY, 'r2t_wardrobe').setScale(0.28).setDepth(20);
 
     // CENTER: bean bag on carpet (swapped from cable zone position)
-    this.techBag = this.add.image(630, 350, 'r2t_bag').setScale(0.22).setDepth(20);
+    this.techBag = this.add.image(610, 380, 'r2t_bag').setScale(0.22).setDepth(20);
 
     // BOTTOM-RIGHT: sofa (owner sleeps here) — flipped to face left toward desk
-    this.sofa = this.add.image(820, 500, 'r2t_sofa').setScale(0.28).setDepth(20).setFlipX(true).setAngle(90);
+    this.sofa = this.add.image(820, 480, 'r2t_sofa').setScale(0.28).setDepth(20).setFlipX(true).setAngle(90);
 
     // Plants — near desk (bottom-left) and near sofa (bottom-right)
-    this.plant1 = this.add.image(100, 420, 'r2t_plant1').setScale(0.18).setDepth(21);
-    this.plant2 = this.add.image(900, 530, 'r2t_plant2').setScale(0.18).setDepth(21);
+    this.plant1 = this.add.image(100, 520, 'r2t_plant1').setScale(0.18).setDepth(21);
+    this.plant2 = this.add.image(650, 130, 'r2t_plant2').setScale(0.18).setDepth(21);
 
     // ── FURNITURE FOOTPRINTS ─────────────────────────────────
     // Gaming desk — blocks front-bottom edge
     { const sp = this.cpDesk, sw = sp.displayWidth, sh = sp.displayHeight;
-      this.furnitureSystem.add('cpDesk', sp.x, (sp.y - sh/2) + sh*0.82, sw*0.70, 16); }
+      this.furnitureSystem.add('cpDesk', 180, 200, sw*0.40, 16); }
     // Gaming chair — small base footprint
-    this.furnitureSystem.addFromSprite('chair', this.gamingChair, 0.22, 0.78);
+    this.furnitureSystem.add('chair',  380,240, 40, 20);
     // GMG table — blocks bottom edge
     { const sp = this.gmgTable, sw = sp.displayWidth, sh = sp.displayHeight;
-      this.furnitureSystem.add('shelf', sp.x, (sp.y - sh/2) + sh*0.80, sw*0.55, 14); }
+      this.furnitureSystem.add('shelf', sp.x, 480, 55, 40); }
     // Wardrobe — NO footprint: it's the safe zone, player must walk in freely
     // Sofa — front edge blocker
     { const sp = this.sofa, sw = sp.displayWidth, sh = sp.displayHeight;
-      this.furnitureSystem.add('sofa', sp.x, (sp.y - sh/2) + sh*0.68, sw*0.72, 16); }
+      this.furnitureSystem.add('sofa', sp.x, 450 , 16, sw*0.5); }
     // Bag/side-table
-    this.furnitureSystem.addFromSprite('bag', this.techBag, 0.40, 0.75);
+    this.furnitureSystem.add('bag', 640,320, 60, 30);
     // Plants — tiny collision circles
     this.furnitureSystem.addFromSprite('plant1', this.plant1, 0.16, 0.50);
     this.furnitureSystem.addFromSprite('plant2', this.plant2, 0.16, 0.50);
@@ -430,24 +440,24 @@ export default class Room2Scene extends Phaser.Scene {
     const LS = 0.11;
 
     // 1. GPU — near desk corner (risky, near patrol start)
-    const gpuX=270, gpuY=210;
+    const gpuX=250, gpuY=300;
     const gpu  = s.add.image(gpuX, gpuY, 'r2t_gpu').setScale(LS).setDepth(24);
 
     // 2. Headphones — on shelf top-center (hard to reach, noise zone nearby)
-    const hpX=530, hpY=100;
+    const hpX=530, hpY=170;
     const hp   = s.add.image(hpX, hpY, 'r2t_headphone').setScale(LS).setDepth(24);
 
     // 3. Keyboard — near wardrobe edge (safe zone adjacent, risky)
-    const kbX=740, kbY=195;
-    const kb   = s.add.image(kbX, kbY, 'r2t_keyboard').setScale(LS).setDepth(24);
+    const kbX=780, kbY=290;
+    const kb   = s.add.image(kbX, kbY, 'r2t_keyboard').setScale(LS).setDepth(24).setAngle(20);
 
     // 4. Mouse — inside cable zone (noisiest spot)
-    const msX=640, msY=360;
-    const ms   = s.add.image(msX, msY, 'r2t_mouse').setScale(LS).setDepth(24);
+    const msX=340, msY=450;
+    const ms   = s.add.image(msX, msY, 'r2t_mouse').setScale(0.1).setDepth(24).setAngle(70);
 
     // 5. USB — near sofa edge (owner sleeps here — max risk)
-    const usbX=730, usbY=490;
-    const usb  = s.add.image(usbX, usbY, 'r2t_usb').setScale(LS).setDepth(24);
+    const usbX=650, usbY=530;
+    const usb  = s.add.image(usbX, usbY, 'r2t_usb').setScale(0.1).setDepth(24).setAngle(-30);
 
     this._lootItems = [
       { id:'gpu',      name:'GPU',          sprite:gpu, glow:makeGlow(gpuX, gpuY, 0xff6f00), ring:makeRing(gpuX, gpuY, 0xffab40), shadow:makeShadow(gpuX,gpuY), radius:38, noise:0.08, shake:8,  prompt:'GPU grabbed!' },
@@ -559,6 +569,7 @@ export default class Room2Scene extends Phaser.Scene {
 
     // Owner sleeps on sofa
     const sleepTex = this.textures.exists('r2_owner_sleep') ? 'r2_owner_sleep' : 'r2_owner_src';
+    this.ownerSleepPosition = { x: 820, y: 470 };
     this.owner = this.physics.add.sprite(820, 470, sleepTex);
     this.owner.setImmovable(true).setScale(0.24).setDepth(22).setCollideWorldBounds(true);
     this.owner.body.allowGravity = false;
@@ -687,6 +698,10 @@ export default class Room2Scene extends Phaser.Scene {
 
   /* ─────────────────────── PLAYER LOGIC ────────────────────── */
   _handlePlayer(delta) {
+    if (this.roomIntroActive) {
+      this.player?.setVelocity(0, 0);
+      return;
+    }
     if (this.player?.body && !this.hidden && !this.player.body.enable) this.player.body.enable = true;
     if (this.player && !this.hidden) this.player.setVisible(true);
 
@@ -1020,7 +1035,7 @@ export default class Room2Scene extends Phaser.Scene {
       playerMarker.centerY,
       ownerCatch.centerX,
       ownerCatch.centerY
-    ) <= 34;
+    ) <= 42;
     return overlaps && closeEnough;
   }
 
@@ -1119,7 +1134,7 @@ export default class Room2Scene extends Phaser.Scene {
     g.strokeRectShape(ownerMarker);
     g.lineStyle(1, 0xffc857, 0.75);
     g.strokeRectShape(catchRect);
-    g.strokeCircle(catchRect.centerX, catchRect.centerY, 34);
+    g.strokeCircle(catchRect.centerX, catchRect.centerY, 42);
   }
 
   _getPlayerCenterMarker() {

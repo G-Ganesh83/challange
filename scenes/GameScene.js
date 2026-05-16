@@ -32,6 +32,7 @@ export default class GameScene extends Phaser.Scene {
     this.catchContactMs = 0;
     this.lastRunNoiseAt = 0;
     this.toastTimer = null;
+    this.exitTransitionStarted = false;
   }
 
   /* ───────────────────────── PRELOAD ───────────────────────── */
@@ -58,6 +59,7 @@ export default class GameScene extends Phaser.Scene {
     this.load.audio('fahh',           'assets/sounds/fahh.mp3');
     this.load.audio('enter',          'assets/sounds/enter.mp3');
     this.load.audio('pickup',         'assets/sounds/pickup.mp3');
+    this.load.audio('door_unlock',    'assets/sounds/door_unlock.mp3');
     this.load.audio('coreTransition', 'assets/sounds/core_transition.mp3');
     this.load.audio('out',            'assets/sounds/out.mp3');
     this.load.audio('safe',           'assets/sounds/safe.mp3');
@@ -72,6 +74,7 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('end-screen')?.classList.add('hidden');
     document.getElementById('message-toast')?.classList.add('hidden');
     this.input.enabled = true;
+    if (this.input.keyboard) this.input.keyboard.enabled = true;
     this.physics.world.resume();
 
     // Reset flags
@@ -95,6 +98,7 @@ export default class GameScene extends Phaser.Scene {
     this.debugHitboxesEnabled = new URLSearchParams(window.location.search).has('debugHitboxes');
     this.catchContactMs = 0;
     this.lastRunNoiseAt = 0;
+    this.exitTransitionStarted = false;
 
     // Systems
     this.noiseSystem      = new NoiseSystem(this);
@@ -118,6 +122,7 @@ export default class GameScene extends Phaser.Scene {
     this.setupPolish();
     this.physics.world.resume();
     this.input.enabled = true;
+    if (this.input.keyboard) this.input.keyboard.enabled = true;
     this.timerSystem.start();
     this.updatePrompt('Sneak. The room is weirdly cozy.');
   }
@@ -321,6 +326,7 @@ export default class GameScene extends Phaser.Scene {
 
   /* ─────────────────────── OWNER ───────────────────────────── */
   createOwner() {
+    this.ownerSleepPosition = { x: 744, y: 210 };
     this.owner = this.physics.add.sprite(744,210,'owner_sleep');
     this.owner.setImmovable(true).setScale(0.25).setDepth(21).setCollideWorldBounds(true);
     this.owner.body.allowGravity = false;
@@ -437,6 +443,10 @@ export default class GameScene extends Phaser.Scene {
 
   /* ─────────────────────── PLAYER LOGIC ────────────────────── */
   handlePlayer(delta) {
+    if (this.exitTransitionStarted) {
+      this.player?.setVelocity(0, 0);
+      return;
+    }
     if (this.player?.body && !this.hidden && !this.player.body.enable) this.player.body.enable = true;
     if (this.player && !this.hidden) this.player.setVisible(true);
 
@@ -479,6 +489,10 @@ export default class GameScene extends Phaser.Scene {
 
   handleInteract(time) {
     if (!Phaser.Input.Keyboard.JustDown(this.cursors.E) || this.hidden || this.gameOver) return;
+    if (this.isPlayerInExitZone()) {
+      this.tryExitRoom();
+      return;
+    }
     const loot = this.lootSystem.getClosest(this.player.x, this.player.y, 48);
     if (loot) { this.lootSystem.collect(loot); return; }
     const nearCloset = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.closet.x, this.closet.y) < 54;
@@ -652,8 +666,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.lootSystem.allCollected()) {
       if (this.exitPromptMode!=='blocked') {
         this.exitPromptVisible=true; this.exitPromptMode='blocked';
-        this.updatePrompt(`Need all loot before escaping (${this.lootSystem.collectedCount}/${this.lootSystem.total})`, 'warning');
-        this.onExitDenied();
+        this.updatePrompt(`Collect all loot before escaping. (${this.lootSystem.collectedCount}/${this.lootSystem.total})`, 'warning');
       }
       return;
     }
@@ -661,16 +674,40 @@ export default class GameScene extends Phaser.Scene {
       this.exitPromptVisible=true; this.exitPromptMode='ready';
       this.updatePrompt('All loot secured. Press E to escape.', 'success');
     }
-    if (!Phaser.Input.Keyboard.JustDown(this.cursors.E)) return;
+  }
+
+  tryExitRoom() {
+    if (this.roomCompleted || this.exitTransitionStarted) return;
+    if (!this.lootSystem.allCollected()) {
+      this.exitPromptVisible = true;
+      this.exitPromptMode = 'blocked';
+      this.updatePrompt('Collect all loot before escaping.', 'warning');
+      this.onExitDenied();
+      return;
+    }
     this.completeRoom();
   }
 
   completeRoom() {
     if (this.roomCompleted) return;
-    this.roomCompleted=true; this.gameOver=true;
+    this.roomCompleted=true; this.gameOver=true; this.exitTransitionStarted=true;
     this.timerSystem.stop();
+    this.chaseMode=false;
+    this.hidden=false;
+    this.player.setVisible(true);
     this.player.setVelocity(0,0); this.owner.setVelocity(0,0);
+    if (this.player.body) {
+      this.player.body.enable = false;
+      this.player.body.moves = false;
+    }
+    if (this.owner.body) {
+      this.owner.body.enable = false;
+      this.owner.body.moves = false;
+    }
+    this.ownerAI?.reset?.();
+    this.tweens.killTweensOf([this.owner, this.player]);
     this.input.enabled = false;
+    this.input.keyboard?.enabled && (this.input.keyboard.enabled = false);
     this.playSfx('door_unlock',{minGap:1200,volume:0.65});
     this.playSfx('footstep',{minGap:300,delay:260,volume:0.18});
     this.playSfx('success',{minGap:2000,delay:620});
@@ -679,13 +716,20 @@ export default class GameScene extends Phaser.Scene {
       this.exitGlowObj.setAlpha(0.45);
       this.tweens.add({ targets:this.exitGlowObj, scale:1.28, alpha:0.8, duration:520, yoyo:true, ease:'Sine.inOut' });
     }
-    this.cameras.main.fade(1250,6,4,10);
-    this.time.delayedCall(1350, () => this.scene.start('TransitionScene', {
-      nextScene: 'Room2Scene',
-      night: 2,
-      lootCount: this.lootSystem.collectedCount || 0,
-      subtitle: 'Gaming Apartment'
-    }));
+    if (this.exitLabel) {
+      this.tweens.add({ targets:this.exitLabel, scale:1.12, alpha:0.92, duration:260, yoyo:true, ease:'Sine.inOut' });
+    }
+    AM.duckAmbient(this, 0.08, 900);
+    this.cameras.main.fadeOut(1250,6,4,10);
+    this.time.delayedCall(1380, () => {
+      this.cleanupSceneState();
+      this.scene.start('TransitionScene', {
+        nextScene: 'Room2Scene',
+        night: 2,
+        lootCount: this.lootSystem.collectedCount || 0,
+        subtitle: 'Gaming Apartment'
+      });
+    });
   }
 
   onCaught() {
@@ -738,7 +782,7 @@ export default class GameScene extends Phaser.Scene {
       playerMarker.centerY,
       ownerCatch.centerX,
       ownerCatch.centerY
-    ) <= 34;
+    ) <= 42;
     return overlaps && closeEnough;
   }
 
@@ -825,7 +869,7 @@ export default class GameScene extends Phaser.Scene {
     g.strokeRectShape(ownerMarker);
     g.lineStyle(1, 0xffc857, 0.75);
     g.strokeRectShape(catchRect);
-    g.strokeCircle(catchRect.centerX, catchRect.centerY, 34);
+    g.strokeCircle(catchRect.centerX, catchRect.centerY, 42);
   }
 
   getPlayerCenterMarker() {
