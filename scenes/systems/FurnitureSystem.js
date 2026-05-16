@@ -36,7 +36,7 @@ export default class FurnitureSystem {
 
   /** Call once in scene create(), before adding any footprints. */
   init() {
-    this.debug = new URLSearchParams(window.location.search).has('debugWalls');
+    this.debug = true;
     this.group = this.scene.physics.add.staticGroup();
     if (this.debug) {
       this._gfx = this.scene.add.graphics().setDepth(200);
@@ -56,8 +56,7 @@ export default class FurnitureSystem {
     const sh  = sprite.displayHeight;
     const w   = sw * widthFrac;
     const h   = 16;
-    // slight left lean — one quarter left of center
-    const cx  = sprite.x - sw * 0.12;
+    const cx  = sprite.x;
     const cy  = (sprite.y - sh / 2) + sh * yFrac;
     return this.add(label, cx, cy, w, h);
   }

@@ -92,6 +92,7 @@ export default class GameScene extends Phaser.Scene {
     this.safeZoneEnterAt = null;
     this.wasInSafeZone = false;
     this.debugWallsEnabled = new URLSearchParams(window.location.search).has('debugWalls');
+    this.debugHitboxesEnabled = new URLSearchParams(window.location.search).has('debugHitboxes');
     this.catchContactMs = 0;
     this.lastRunNoiseAt = 0;
 
@@ -321,14 +322,12 @@ export default class GameScene extends Phaser.Scene {
   /* ─────────────────────── OWNER ───────────────────────────── */
   createOwner() {
     this.owner = this.physics.add.sprite(744,210,'owner_sleep');
-    this.owner.setSize(58,66).setOffset(12,10);
     this.owner.setImmovable(true).setScale(0.25).setDepth(21).setCollideWorldBounds(true);
     this.owner.body.allowGravity = false;
     this.owner.state = 'sleeping';
+    this.applyOwnerFootHitbox();
     this.physics.add.collider(this.owner, this.wallColliders ?? this.roomWalls);
     this.physics.add.collider(this.owner, this.safeZoneBlock);
-    this.physics.add.overlap(this.player, this.owner, () => this.onCaught());
-    this.furnitureSystem.wireOwner(this.owner);
     this.resetOwnerToStart();
   }
 
@@ -339,6 +338,7 @@ export default class GameScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     this.player.setTexture('thief_idle').setVisible(true).setAlpha(1).setFlipX(false);
     this.player.body.enable = true;
+    this.player.setSize(22,16).setOffset(27,58);
     this.currentPlayerTexture = 'thief_idle';
   }
 
@@ -347,10 +347,25 @@ export default class GameScene extends Phaser.Scene {
     this.owner.body?.reset(744, 210);
     this.owner.setPosition(744, 210);
     this.owner.setVelocity(0, 0);
+    this.owner.body.enable = true;
+    this.owner.body.moves = true;
     this.owner.state = 'sleeping';
     this.owner.setTexture('owner_sleep').setScale(0.25).setVisible(true).setAlpha(1);
+    this.applyOwnerFootHitbox();
     this.chaseMode = false;
     this.catchContactMs = 0;
+  }
+
+  applyOwnerFootHitbox() {
+    if (!this.owner?.body || !this.owner.frame) return;
+    const frame = this.owner.frame;
+    const bodyW = Math.min(30, Math.max(22, frame.width * 0.32));
+    const bodyH = Math.min(20, Math.max(14, frame.height * 0.18));
+    const offsetX = (frame.width - bodyW) / 2;
+    const offsetY = frame.height - bodyH - 5;
+    this.owner.setSize(bodyW, bodyH);
+    this.owner.setOffset(offsetX, offsetY);
+    this.owner.body.updateFromGameObject();
   }
 
   /* ─────────────────────── UI ───────────────────────────────── */
@@ -450,6 +465,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.ownerAI || this.gameOver || this.roomCompleted) return;
     if (this.isPlayerInSafeZone()) this.safeZoneEnterAt = this.time.now;
     const mappedIntensity = this.mapSoundIntensity(intensity, source);
+    this.ownerAI.setSoundTarget(this.player.x, this.player.y);
     this.ownerAI.reactToSound(mappedIntensity, source);
   }
 
@@ -711,17 +727,29 @@ export default class GameScene extends Phaser.Scene {
   }
 
   isOwnerTouchingPlayer() {
-    if (this.physics.overlap(this.player, this.owner)) return true;
     const pb = this.player.body;
     const ob = this.owner.body;
     if (!pb || !ob) return false;
-    const bodyTouch = Phaser.Math.Distance.Between(pb.center.x, pb.center.y, ob.center.x, ob.center.y) <= 56;
-    if (bodyTouch) return true;
+    const playerMarker = this.getPlayerMarkerRect(4);
+    const ownerCatch = this.getOwnerCatchRect();
+    const overlaps = Phaser.Geom.Intersects.RectangleToRectangle(playerMarker, ownerCatch);
+    const closeEnough = Phaser.Math.Distance.Between(
+      playerMarker.centerX,
+      playerMarker.centerY,
+      ownerCatch.centerX,
+      ownerCatch.centerY
+    ) <= 34;
+    return overlaps && closeEnough;
+  }
 
-    // The alert/chase artwork is larger than its Arcade body. During an actual
-    // chase, use sprite centers as a final close-contact fallback so visible
-    // body contact cannot miss.
-    return this.chaseMode && Phaser.Math.Distance.Between(this.player.x, this.player.y, this.owner.x, this.owner.y) <= 108;
+  getBodyRect(sprite, pad = 0) {
+    const b = sprite.body;
+    return new Phaser.Geom.Rectangle(
+      b.x - pad,
+      b.y - pad,
+      b.width + pad * 2,
+      b.height + pad * 2
+    );
   }
 
   onExitDenied() {
@@ -763,7 +791,9 @@ export default class GameScene extends Phaser.Scene {
     if (this.playerShadow) {
       const moving=this.player?.body ? (Math.abs(this.player.body.velocity.x)+Math.abs(this.player.body.velocity.y))>6 : false;
       const bob=moving ? Math.sin(t*10)*1.1 : 0;
-      this.playerShadow.x=this.player.x+2; this.playerShadow.y=this.player.y+3+bob;
+      const anchor = this.getPlayerCenterMarker();
+      this.playerShadow.x=anchor.x;
+      this.playerShadow.y=anchor.y+6+bob;
       this.playerShadow.scaleX=1+(moving?0.06:0); this.playerShadow.scaleY=1+(moving?0.03:0);
     }
 
@@ -774,6 +804,57 @@ export default class GameScene extends Phaser.Scene {
     if (this.bottleRing) { this.bottleRing.x=this.bottle.x; this.bottleRing.y=this.bottle.y; this.bottleRing.setScale(1+pulse*0.03); this.bottleRing.alpha=0.18+pulse*0.18; }
 
     this.lootSystem.updateAmbient(time);
+    this.updateHitboxDebug();
+  }
+
+  updateHitboxDebug() {
+    if (!this.debugHitboxesEnabled || !this.player?.body || !this.owner?.body) return;
+    if (!this.hitboxDebugGfx) this.hitboxDebugGfx = this.add.graphics().setDepth(500);
+    const g = this.hitboxDebugGfx;
+    g.clear();
+    const playerMarker = this.getPlayerMarkerRect();
+    const ownerMarker = this.getOwnerMarkerRect();
+    const catchRect = this.getOwnerCatchRect();
+    g.fillStyle(0x42f5a7, 0.22);
+    g.fillRectShape(playerMarker);
+    g.lineStyle(2, 0x42f5a7, 0.95);
+    g.strokeRectShape(playerMarker);
+    g.fillStyle(0xff526d, 0.22);
+    g.fillRectShape(ownerMarker);
+    g.lineStyle(2, 0xff526d, 0.95);
+    g.strokeRectShape(ownerMarker);
+    g.lineStyle(1, 0xffc857, 0.75);
+    g.strokeRectShape(catchRect);
+    g.strokeCircle(catchRect.centerX, catchRect.centerY, 34);
+  }
+
+  getPlayerCenterMarker() {
+    return {
+      x: this.player?.x ?? 0,
+      y: (this.player?.y ?? 0) - 8
+    };
+  }
+
+  getPlayerMarkerRect(pad = 0) {
+    const p = this.getPlayerCenterMarker();
+    return new Phaser.Geom.Rectangle(p.x - 11 - pad, p.y - 8 - pad, 22 + pad * 2, 16 + pad * 2);
+  }
+
+  getOwnerCenterMarker() {
+    return {
+      x: this.owner?.x ?? 0,
+      y: (this.owner?.y ?? 0) - 8
+    };
+  }
+
+  getOwnerMarkerRect() {
+    const p = this.getOwnerCenterMarker();
+    return new Phaser.Geom.Rectangle(p.x - 13, p.y - 10, 26, 20);
+  }
+
+  getOwnerCatchRect() {
+    const p = this.getOwnerCenterMarker();
+    return new Phaser.Geom.Rectangle(p.x - 18, p.y - 14, 36, 28);
   }
 
   updateExitGlow(time) {

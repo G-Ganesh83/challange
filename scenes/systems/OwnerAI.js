@@ -16,7 +16,7 @@ export default class OwnerAI {
     this.cfg = {
       stirThreshold : config.stirThreshold  ?? 0.55,
       wakeThreshold : config.wakeThreshold  ?? 0.80,
-      chaseSpeed    : config.chaseSpeed     ?? 72,
+      chaseSpeed    : config.chaseSpeed     ?? 118,
       stirCooldown  : config.stirCooldown   ?? 2200,
       patrolPoints  : config.patrolPoints   ?? null,
       patrolSpeed   : config.patrolSpeed    ?? 38,
@@ -29,6 +29,7 @@ export default class OwnerAI {
     this.lastStirAt  = 0;
     this.alertScale  = 0.28;
     this._alertPhaseUntil = 0;  // timestamp when alert phase ends → full chase
+    this._soundTarget = null;
 
     // Patrol state
     this._patrolIdx   = 0;
@@ -44,6 +45,11 @@ export default class OwnerAI {
     this._patrolIdx   = 0;
     this._patrolPause = 0;
     this._alertPhaseUntil = 0;
+    this._soundTarget = null;
+  }
+
+  setSoundTarget(x, y) {
+    this._soundTarget = { x, y };
   }
 
   update(dt) {
@@ -71,10 +77,9 @@ export default class OwnerAI {
       return;
     }
 
-    // Still in alert/searching phase — stand still, look around
+    // Still in alert/searching phase — move toward the sound source.
     if (owner.state === 'alert' || owner.state === 'searching') {
-      owner.setVelocity(0, 0);
-      // Noise still high OR time elapsed → escalate to full chase
+      this._handleSearch(dt);
       if (s.time.now >= this._alertPhaseUntil) {
         this.forceChase('search');
       }
@@ -103,25 +108,29 @@ export default class OwnerAI {
 
     if (intensity >= 0.10) {
       if (owner.state === 'chase' || s.chaseMode) return;
-      owner.state = 'searching';
-      this._alertPhaseUntil = now + 1900;
+      s.chaseMode = true;
+      s.chaseModeHappened = true;
+      owner.state = 'chase';
+      this._alertPhaseUntil = 0;
       if (s.hidden) s.hiddenSuccessfully = true;
       s.setOwnerBreathing(false);
       owner.setTexture('owner_alert');
       owner.setScale(this.alertScale);
+      this._syncOwnerBody();
       owner.setVisible(true);
       s.tweens.killTweensOf(owner);
       s.ownerWakeBurst('!?');
       s.playSfx('coreTransition', { minGap: 900, delay: 60, volume: 0.45 });
       s.screenShake(10);
       s.flashRed();
-      s.updatePrompt(source === 'run' ? 'Loud footsteps. Hide quickly!' : 'Owner woke up!', 'warning');
+      s.updatePrompt(source === 'run' ? 'Loud footsteps. He is coming!' : 'Owner woke up and is coming!', 'danger');
       return;
     }
 
     if (now - this.lastStirAt > this.cfg.stirCooldown) {
       this.lastStirAt = now;
       if (owner.state === 'sleeping' || owner.state === 'patrol') owner.state = 'disturbed';
+      this._soundTarget = this._soundTarget ?? { x: s.player?.x ?? owner.x, y: s.player?.y ?? owner.y };
       s.ownerWakeBurst('?');
       s.playSfx('coreTransition', { minGap: 700, volume: 0.18, rate: 1.12, detune: 40 });
       s.updatePrompt('The owner stirred...', 'warning');
@@ -144,6 +153,7 @@ export default class OwnerAI {
     s.setOwnerBreathing(false);
     owner.setTexture('owner_alert');
     owner.setScale(this.alertScale);
+    this._syncOwnerBody();
     owner.setVisible(true);
     s.tweens.killTweensOf(owner);
     s.playSfx('coreTransition', { minGap: 700, volume: 0.72 });
@@ -180,6 +190,32 @@ export default class OwnerAI {
     owner.setVelocity(dir.x * this.cfg.patrolSpeed, dir.y * this.cfg.patrolSpeed);
   }
 
+  _handleSearch(dt) {
+    const s = this.scene;
+    const { owner } = s;
+    const target = this._soundTarget ?? { x: s.player?.x ?? owner.x, y: s.player?.y ?? owner.y };
+    const desired = new Phaser.Math.Vector2(target.x - owner.x, target.y - owner.y);
+    if (desired.lengthSq() < 12 * 12) {
+      owner.setVelocity(0, 0);
+      return;
+    }
+
+    desired.normalize();
+    let steer = desired.clone();
+    const body = owner.body;
+    if (body?.blocked?.left || body?.blocked?.right) {
+      steer.x = 0;
+      if (Math.abs(steer.y) < 0.25) steer.y = body.blocked.left ? 1 : -1;
+    }
+    if (body?.blocked?.up || body?.blocked?.down) {
+      steer.y = 0;
+      if (Math.abs(steer.x) < 0.25) steer.x = body.blocked.up ? 1 : -1;
+    }
+    if (steer.lengthSq() < 0.0001) steer = desired;
+    steer.normalize();
+    owner.setVelocity(steer.x * (this.cfg.patrolSpeed + 18), steer.y * (this.cfg.patrolSpeed + 18));
+  }
+
   _handleChase(dt) {
     const s = this.scene;
     const { owner, player } = s;
@@ -189,6 +225,8 @@ export default class OwnerAI {
     s.setOwnerBreathing(false);
     owner.setTexture('owner_alert');
     owner.setScale(this.alertScale);
+    owner.body.enable = true;
+    owner.body.moves = true;
 
     const inSafe = s.isPlayerInSafeZone();
     const targetX = inSafe
@@ -239,7 +277,13 @@ export default class OwnerAI {
 
     if (steer.lengthSq() < 0.0001) steer = desired;
     steer.normalize();
-    owner.setVelocity(steer.x * this.cfg.chaseSpeed, steer.y * this.cfg.chaseSpeed);
+    const speed = this.cfg.chaseSpeed;
+    owner.setVelocity(steer.x * speed, steer.y * speed);
+    if (owner.body?.velocity?.lengthSq?.() === 0 && desired.lengthSq() > 0.0001) {
+      owner.x += steer.x * speed * (dt ?? 16) / 1000;
+      owner.y += steer.y * speed * (dt ?? 16) / 1000;
+      owner.body.updateFromGameObject();
+    }
     owner.setVisible(true);
   }
 
@@ -253,6 +297,7 @@ export default class OwnerAI {
     s.setOwnerBreathing(true);
     s.owner.setTexture(s.ownerSleepTexture ?? 'owner_sleep');
     s.owner.setScale(s.ownerSleepScale ?? 0.25);
+    this._syncOwnerBody();
     s.owner.setVisible(true);
     s.owner.setVelocity(0, 0);
     s.player.body.enable = true;
@@ -263,5 +308,11 @@ export default class OwnerAI {
     s.safeZoneEnterAt = null;
     s.wasInSafeZone = s.isPlayerInSafeZone();
     s.safeZoneSoundArmed = !s.wasInSafeZone;
+  }
+
+  _syncOwnerBody() {
+    const s = this.scene;
+    if (typeof s.applyOwnerFootHitbox === 'function') s.applyOwnerFootHitbox();
+    if (typeof s._applyOwnerFootHitbox === 'function') s._applyOwnerFootHitbox();
   }
 }
