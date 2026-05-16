@@ -48,22 +48,22 @@ export default class MainMenuScene extends Phaser.Scene {
 
     // Drop shadow
     this.add.text(cx + 4, titleY + 4, 'TINY THIEF', {
-      fontFamily: 'Impact, "Arial Black", Arial, sans-serif',
-      fontSize: '76px', color: '#000000', stroke: '#000000', strokeThickness: 12,
+      fontFamily: '"Rajdhani", "Arial Black", Arial, sans-serif',
+      fontSize: '88px', color: '#000000', stroke: '#000000', strokeThickness: 12,
     }).setOrigin(0.5).setDepth(6).setAlpha(0.55);
 
     // Outer glow
     this.add.text(cx, titleY, 'TINY THIEF', {
-      fontFamily: 'Impact, "Arial Black", Arial, sans-serif',
-      fontSize: '76px', color: '#00ffee',
+      fontFamily: '"Rajdhani", "Arial Black", Arial, sans-serif',
+      fontSize: '88px', color: '#00ffee',
       stroke: '#00ffee', strokeThickness: 14,
       shadow: { offsetX: 0, offsetY: 0, color: '#00ffee', blur: 48, fill: true }
     }).setOrigin(0.5).setDepth(7).setAlpha(0.18);
 
     // Main title
     const title = this.add.text(cx, titleY, 'TINY THIEF', {
-      fontFamily: 'Impact, "Arial Black", Arial, sans-serif',
-      fontSize: '76px', color: '#e0ffff',
+      fontFamily: '"Rajdhani", "Arial Black", Arial, sans-serif',
+      fontSize: '88px', color: '#e0ffff',
       stroke: '#cc00ff', strokeThickness: 3,
       shadow: { offsetX: 0, offsetY: 0, color: '#00eeff', blur: 24, fill: true }
     }).setOrigin(0.5).setDepth(8);
@@ -100,7 +100,7 @@ export default class MainMenuScene extends Phaser.Scene {
       const arrowX = cx - 116;
 
       const arrow = this.add.text(arrowX, item.y, '▶', {
-        fontFamily: '"Courier New", monospace',
+        fontFamily: '"Rajdhani", Arial, sans-serif',
         fontSize: '14px', color: '#00ffcc',
         shadow: { offsetX: 0, offsetY: 0, color: '#00ffcc', blur: 12, fill: true }
       }).setOrigin(0.5).setDepth(9).setAlpha(0);
@@ -108,7 +108,7 @@ export default class MainMenuScene extends Phaser.Scene {
       let arrowTween = null;
 
       const btn = this.add.text(baseX, item.y, item.label, {
-        fontFamily: 'Impact, "Arial Black", Arial, sans-serif',
+        fontFamily: '"Rajdhani", "Arial Black", Arial, sans-serif',
         fontSize: '26px', color: '#e0d8ff',
         stroke: '#000000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(9).setInteractive({ useHandCursor: true });
