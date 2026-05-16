@@ -29,10 +29,24 @@ export default class NoiseSystem {
     }
   }
 
-  /** Call each frame. chaseMode slows decay. */
+  /** Call each frame. Decay rate is tiered — higher suspicion lingers longer. */
   update(delta, chaseMode) {
     const dt = Math.max(0, delta ?? 16) / 1000;
-    const decayPerSec = chaseMode ? 0.02 : 0.035;
+    const n = this.noise;
+
+    let decayPerSec;
+    if (chaseMode) {
+      decayPerSec = 0.008; // almost no decay while owner is chasing
+    } else if (n > 0.75) {
+      decayPerSec = 0.012; // very slow — danger zone lingers
+    } else if (n > 0.50) {
+      decayPerSec = 0.022; // slow
+    } else if (n > 0.25) {
+      decayPerSec = 0.034; // medium
+    } else {
+      decayPerSec = 0.055; // fast — low suspicion clears quickly
+    }
+
     this.noise = Phaser.Math.Clamp(this.noise - decayPerSec * dt, 0, 1);
     this._syncHUD();
   }

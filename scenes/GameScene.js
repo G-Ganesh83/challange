@@ -84,6 +84,8 @@ export default class GameScene extends Phaser.Scene {
     this.noiseSystem      = new NoiseSystem(this);
     this.lootSystem       = new LootSystem(this);
     this.ownerAI          = new OwnerAI(this);
+    this.ownerSleepTexture = 'owner_sleep';
+    this.ownerSleepScale   = 0.25;
     this.timerSystem      = new TimerSystem(this);
     this.rankSystem       = new RankSystem(this);
     this.furnitureSystem  = new FurnitureSystem(this);
@@ -573,14 +575,22 @@ export default class GameScene extends Phaser.Scene {
   }
 
   onCaught() {
-    if (this.hidden||this.gameOver||!this.chaseMode) return;
-    this.gameOver=true; this.timerSystem.stop();
-    this.player.setVelocity(0,0); this.owner.setVelocity(0,0);
-    this.updatePrompt('BUSTED! The owner caught the tiny thief.');
-    this.screenShake(140); this.flashRed();
-    this.sound.play('fahh',{volume:1.0,rate:0.9,detune:-220});
-    this.add.text(480,312,'BUSTED!',{
-      fontFamily:'"Press Start 2P"',fontSize:'30px',color:'#fffbf2',stroke:'#a51f1f',strokeThickness:6
+    if (this.gameOver) return;
+    if (this.hidden) return;
+    if (this.isPlayerInSafeZone()) return;   // safe zone protects player
+    this.gameOver = true;
+    this.timerSystem.stop();
+    this.player.setVelocity(0, 0);
+    this.owner.setVelocity(0, 0);
+    this.player.body.enable = false;
+    this.updatePrompt('BUSTED! The owner caught you.');
+    this.screenShake(180);
+    this.flashRed();
+    this.cameras.main.flash(300, 180, 0, 0);
+    this.sound.play('fahh', { volume: 1.0, rate: 0.8, detune: -300 });
+    this.add.text(480, 312, 'BUSTED!', {
+      fontFamily: '"Press Start 2P"', fontSize: '30px',
+      color: '#fffbf2', stroke: '#a51f1f', strokeThickness: 6
     }).setOrigin(0.5).setDepth(200);
     this.time.delayedCall(1600, () => this.rankSystem.showBustedScreen());
   }

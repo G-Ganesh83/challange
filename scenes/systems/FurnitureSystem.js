@@ -70,7 +70,16 @@ export default class FurnitureSystem {
    * @param {number} w      — block width
    * @param {number} h      — block height
    */
-  add(label, cx, cy, w, h) {
+  /**
+   * Add one furniture footprint.
+   * @param {string}  label   — name shown in debug mode
+   * @param {number}  cx      — world X center of block
+   * @param {number}  cy      — world Y center of block
+   * @param {number}  w       — block width
+   * @param {number}  h       — block height
+   * @param {object}  [opts]  — { silent: true } = no fahh sound on collision
+   */
+  add(label, cx, cy, w, h, opts = {}) {
     const s = this.scene;
 
     // Invisible physics rectangle
@@ -93,6 +102,9 @@ export default class FurnitureSystem {
         color: '#00ffff', stroke: '#000000', strokeThickness: 2
       }).setOrigin(0.5).setDepth(201).setAlpha(1);
     }
+
+    // Store silent flag directly on the rect object
+    rect._silent = opts.silent ?? false;
 
     this.group.add(rect);
     this.footprints.push({ label, rect });
@@ -123,6 +135,18 @@ export default class FurnitureSystem {
     const now = s.time.now;
 
     if (s.gameOver || s.hidden) return;
+
+    // Suppress if this footprint is marked silent
+    if (block._silent) return;
+
+    // Suppress if player is within pickup range of any loot item (avoids false fahh near loot)
+    if (s._lootItems) {
+      const closeToLoot = s._lootItems.some(item => {
+        if (item.collected || !item.sprite?.visible) return false;
+        return Phaser.Math.Distance.Between(player.x, player.y, item.sprite.x, item.sprite.y) < 55;
+      });
+      if (closeToLoot) return;
+    }
 
     // Gate: don't fire repeatedly every frame
     if (now - this._lastBumpAt < 320) return;

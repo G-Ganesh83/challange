@@ -2,9 +2,10 @@
  * TimerSystem — countdown timer, urgent UI, full-panic trigger.
  */
 export default class TimerSystem {
-  constructor(scene) {
+  constructor(scene, duration = 90) {
     this.scene = scene;
-    this.seconds = 150;
+    this._initDuration = duration;
+    this.seconds = duration;
     this.running = false;
     this.panicTriggered = false;
     this.timerEl = document.getElementById('timer-display');
@@ -12,14 +13,18 @@ export default class TimerSystem {
   }
 
   reset() {
-    this.seconds = 150;
+    this.seconds = this._initDuration;
     this.running = false;
     this.panicTriggered = false;
     this.timerEl = document.getElementById('timer-display');
     this.timerWrapEl = document.getElementById('timer-wrap');
   }
 
-  start() {
+  start(duration) {
+    if (duration !== undefined) {
+      this._initDuration = duration;
+      this.seconds = duration;
+    }
     this.running = true;
     this._syncDisplay();
   }

@@ -1,59 +1,32 @@
-# Room 2 Plan
+# Heist Game — Task Tracker
 
-## Architecture
-- New Phaser Scene: `Room2Scene.js` in `scenes/`
-- Reuses all 5 systems (NoiseSystem, LootSystem, OwnerAI, TimerSystem, RankSystem)
-- Player passes in automatically from Room 1 escape via `this.scene.start('Room2Scene')`
-- `main.js` must register Room2Scene
+## DONE
+- [x] OwnerAI: alert phase (2.2s look-around before chase), triggers from sleeping+patrol
+- [x] NoiseSystem: tiered suspicion decay (0-25 fast → 75-100 very slow)
+- [x] TimerSystem: configurable duration, Room 1 = 90s
+- [x] GameScene: onCaught() fixed (no chaseMode guard, safeZone protects)
+- [x] GameScene: ownerSleepTexture / ownerSleepScale scene props set
+- [x] OwnerAI.resetToSleep: now uses scene.ownerSleepTexture / ownerSleepScale
+- [x] Room2Scene: COMPLETE fresh build
+  - Reference image layout followed
+  - TOP-LEFT: cpDesk + gamingChair
+  - TOP-CENTER: gmgTable (shelf)
+  - TOP-RIGHT: wardrobe (SAFE ZONE, cyan glow)
+  - BOTTOM-LEFT: techBag + plant1
+  - BOTTOM-RIGHT: sofa (owner) + plant2
+  - MID-RIGHT: cable zone (60px glowing ring, passive noise)
+  - 5 loot items: GPU, headphones, keyboard, mouse, USB
+  - Harder AI: wakeThreshold 0.72, chaseSpeed 88, patrol 5 points
+  - 120s timer
+  - FurnitureSystem footprints for all pieces
+  - Full systems: noise, timer, ownerAI, rankSystem, safe zone, exit
 
-## Room 2 Identity: Gamer / Tech Room
-- Atmosphere: dark, RGB lighting overlay, slightly chaotic, cozy-but-intense
-- Same 960x640 canvas, same room.png background with RGB color grading
-- Furniture: gaming desk, PC tower, monitor, chair, shelves, cables on floor
-- Uses existing asset keys where possible + new ones for tech props
+## KNOWN MINOR THINGS
+- owner2.png is a full scene PNG (same 1536x1024 as bg) — _cropTex handles it
+  but it may show as a flat image. If owner looks bad in-game, swap to char asset.
+- Git push still failing (no credentials). User aware.
 
-## Loot Items (5 total)
-1. `headphones` — near desk, medium risk, noise 0.06
-2. `keyboard`   — on desk, medium risk, noise 0.08
-3. `gaming_mouse` — desk corner, low risk, noise 0.04
-4. `gpu`         — near PC/shelf, high risk, noise 0.10
-5. `crypto`      — hidden corner joke item, low noise 0.03
-
-## New Mechanic: Noisy Floor Zone
-- A rectangular "cable zone" area on the floor (visually: slightly different overlay)
-- When player walks through it, `noiseSystem.add(0.008 * delta/16)` per frame
-- Subtle visual: flickering orange/red tint overlay on that zone
-- Prompt appears first time: "Careful — cables crunch underfoot!"
-
-## Owner Changes (Room 2 harder)
-- Chase speed: 72 → 95
-- Stir threshold: noise >= 0.45 (was 0.55)
-- Wake threshold: noise >= 0.65 (was 0.80)
-- Timer: 120s (was 150s)
-- Owner PATROLS when not chasing:
-  - 3 patrol waypoints across the room
-  - Moves slowly (speed ~38) between them
-  - If patrol path crosses cable zone, increases noise slightly
-
-## Owner Patrol Logic (in OwnerAI or new PatrolOwnerAI)
-- Option: extend OwnerAI with a `patrolPoints` config + patrol state
-- Cleanest: pass `config` object to OwnerAI constructor with overrides
-- Add patrol state to existing state machine: sleeping → patrol → stir → chase
-
-## Files to create/modify
-1. `scenes/Room2Scene.js` — new full scene (mirrors GameScene structure)
-2. `scenes/systems/OwnerAI.js` — add patrol support via config
-3. `main.js` — register Room2Scene
-4. `scenes/GameScene.js` — change `completeRoom()` to `scene.start('Room2Scene')`
-
-## Sequence
-1. Patch OwnerAI for configurable thresholds + patrol
-2. Write Room2Scene
-3. Wire up main.js + GameScene transition
-4. Test
-
-## Risks
-- No new art assets yet — use placeholder colored rectangles for new loot, 
-  or reuse existing sprite keys with tint. Decision: reuse gem/gold/key/bottle
-  with tints + rename in HUD until real art lands.
-- Cable zone rect must not overlap safe zone or exit zone.
+## TODO
+- Test in-browser: press 2 in Room 1 to jump to Room 2
+- If owner texture looks wrong, may need dedicated owner character PNG for Room 2
+- Room 3 (future)

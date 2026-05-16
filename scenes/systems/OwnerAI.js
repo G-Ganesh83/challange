@@ -28,6 +28,7 @@ export default class OwnerAI {
     this.detourDir   = new Phaser.Math.Vector2(0, 0);
     this.lastStirAt  = 0;
     this.alertScale  = 0.28;
+    this._alertPhaseUntil = 0;  // timestamp when alert phase ends → full chase
 
     // Patrol state
     this._patrolIdx   = 0;
@@ -35,13 +36,14 @@ export default class OwnerAI {
   }
 
   reset() {
-    this.stuckMs     = 0;
-    this.lastPos     = { x: 0, y: 0 };
-    this.detourUntil = 0;
-    this.detourDir   = new Phaser.Math.Vector2(0, 0);
-    this.lastStirAt  = 0;
-    this._patrolIdx  = 0;
+    this.stuckMs      = 0;
+    this.lastPos      = { x: 0, y: 0 };
+    this.detourUntil  = 0;
+    this.detourDir    = new Phaser.Math.Vector2(0, 0);
+    this.lastStirAt   = 0;
+    this._patrolIdx   = 0;
     this._patrolPause = 0;
+    this._alertPhaseUntil = 0;
   }
 
   update(dt) {
@@ -65,25 +67,37 @@ export default class OwnerAI {
       }
     }
 
-    // Full wake threshold
-    if (noise >= this.cfg.wakeThreshold) {
-      s.chaseMode = true;
-      s.chaseModeHappened = true;
-      owner.state = 'chase';
+    // Alert phase — owner wakes up and looks around before chasing
+    // Triggers from sleeping OR patrol state
+    if (noise >= this.cfg.wakeThreshold && (owner.state === 'sleeping' || owner.state === 'patrol')) {
+      owner.state = 'alert';
+      this._alertPhaseUntil = s.time.now + 2200; // 2.2s looking around
       s.setOwnerBreathing(false);
       owner.setTexture('owner_alert');
       owner.setScale(this.alertScale);
       owner.setVisible(true);
-      s.playSfx('coreTransition', { minGap: 1200, delay: 120 });
-      s.flashRed();
-      s.ownerWakeBurst();
-      s.playSfx('fahh', { minGap: 1600, delay: 80 });
       s.tweens.killTweensOf(owner);
-      const baseY = owner.y;
-      s.tweens.add({ targets: owner, y: baseY - 8, duration: 90, yoyo: true, ease: 'Sine.out' });
-      s.tweens.add({ targets: owner, scaleX: this.alertScale * 1.06, scaleY: this.alertScale * 1.06, duration: 110, yoyo: true, ease: 'Back.out' });
-      s.screenShake(28);
-      s.updatePrompt('OH NO. OWNER HAS ENTERED PANIC MODE.');
+      s.ownerWakeBurst('!?');
+      s.playSfx('coreTransition', { minGap: 1200, delay: 120 });
+      s.screenShake(20);
+      s.flashRed();
+      s.updatePrompt('The owner heard something... they\'re looking around!');
+      return;
+    }
+
+    // Still in alert phase — stand still, look around
+    if (owner.state === 'alert') {
+      owner.setVelocity(0, 0);
+      // Noise still high OR time elapsed → escalate to full chase
+      if (s.time.now >= this._alertPhaseUntil) {
+        s.chaseMode = true;
+        s.chaseModeHappened = true;
+        owner.state = 'chase';
+        s.playSfx('fahh', { minGap: 800, delay: 80 });
+        s.screenShake(50);
+        s.ownerWakeBurst('!!!');
+        s.updatePrompt('OWNER IS COMING FOR YOU. RUN OR HIDE!');
+      }
       return;
     }
 
@@ -191,9 +205,10 @@ export default class OwnerAI {
     s.hidden = false;
     s.hiddenSuccessfully = true;
     s.owner.state = 'sleeping';
+    this._alertPhaseUntil = 0;
     s.setOwnerBreathing(true);
-    s.owner.setTexture('owner_sleep');
-    s.owner.setScale(0.25);
+    s.owner.setTexture(s.ownerSleepTexture ?? 'owner_sleep');
+    s.owner.setScale(s.ownerSleepScale ?? 0.25);
     s.owner.setVisible(true);
     s.owner.setVelocity(0, 0);
     s.player.body.enable = true;
