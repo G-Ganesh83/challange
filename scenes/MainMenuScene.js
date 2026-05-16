@@ -1,4 +1,4 @@
-// MainMenuScene — fullscreen pixel art neon alley, centered menu
+// MainMenuScene — fullscreen neon alley, no panel, floating UI
 import MuteButton from './systems/MuteButton.js';
 
 export default class MainMenuScene extends Phaser.Scene {
@@ -10,171 +10,166 @@ export default class MainMenuScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor('#03020a');
 
-    // ── BG: cover fill entire canvas ──────────────────────────
+    // ── BG: cover fill entire canvas ─────────────────────────
     const bg = this.add.image(cx, H / 2, 'menu_bg').setDepth(0);
     const scaleH = H / 992;
     const scaleW = W / 1586;
     bg.setScale(Math.max(scaleH, scaleW)).setAlpha(1);
 
-    // ── Slight global darkening to make text pop ──────────────
-    this.add.rectangle(cx, H / 2, W, H, 0x000000, 0.28).setDepth(1);
+    // Slight overall darkening so text pops
+    this.add.rectangle(cx, H / 2, W, H, 0x000000, 0.22).setDepth(1);
 
-    // ── Dark panel behind menu (center) ──────────────────────
-    const panelW = 380, panelH = 380;
-    const panelY = H / 2 + 20;
-    const panel = this.add.graphics().setDepth(2);
-    panel.fillStyle(0x050210, 0.72);
-    panel.fillRoundedRect(cx - panelW / 2, panelY - panelH / 2, panelW, panelH, 8);
-    // Neon border
-    panel.lineStyle(1.5, 0x6600cc, 0.7);
-    panel.strokeRoundedRect(cx - panelW / 2, panelY - panelH / 2, panelW, panelH, 8);
-
-    // Panel pulse
-    this.tweens.add({
-      targets: panel, alpha: { from: 0.9, to: 1.0 },
-      duration: 2000, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
-    });
-
-    // ── Neon flicker overlay ──────────────────────────────────
-    const neonFlash = this.add.rectangle(cx, H / 2, W, H, 0x3300aa, 0).setDepth(3);
+    // ── Neon flicker rectangles (multi-layer) ─────────────────
+    // Primary full-screen flash
+    const neonFlash = this.add.rectangle(cx, H / 2, W, H, 0x6600ff, 0).setDepth(3);
     this._neonFlash = neonFlash;
+    // Secondary warm flicker (pink)
+    const neonWarm  = this.add.rectangle(cx, H / 2, W, H, 0xff0066, 0).setDepth(3);
+    this._neonWarm  = neonWarm;
 
-    // ── Light rain drops ─────────────────────────────────────
-    const rainGfx = this.add.graphics().setDepth(4).setAlpha(0.18);
-    const rainDrops = Array.from({ length: 55 }, () => ({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      speed: 3.5 + Math.random() * 2.5,
-      len:   6   + Math.random() * 7,
-      alpha: 0.25 + Math.random() * 0.4,
+    // ── Rain ─────────────────────────────────────────────────
+    // Layer A — distant thin drops (background)
+    const rainBg = this.add.graphics().setDepth(2).setAlpha(0.22);
+    const dropsB = Array.from({ length: 80 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      speed: 2.8 + Math.random() * 1.8, len: 5 + Math.random() * 5,
+      alpha: 0.15 + Math.random() * 0.2,
+    }));
+    // Layer B — closer vivid drops (foreground)
+    const rainFg = this.add.graphics().setDepth(5).setAlpha(0.55);
+    const dropsF = Array.from({ length: 45 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      speed: 5 + Math.random() * 3, len: 8 + Math.random() * 10,
+      alpha: 0.35 + Math.random() * 0.45,
     }));
 
-    // ── Thief icon above title ────────────────────────────────
-    const iconY = panelY - panelH / 2 - 18;
+    // ── Thief icon ────────────────────────────────────────────
+    // Positioned above title area, gentle float
+    const iconY = 118;
     const thief = this.add.image(cx, iconY, 'thief_idle_src')
-      .setScale(0.075)
-      .setDepth(6)
-      .setAlpha(0.95);
-
-    // Subtle bob
+      .setScale(0.07).setDepth(7).setAlpha(0.92);
     this.tweens.add({
-      targets: thief, y: iconY - 5,
-      duration: 1800, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
+      targets: thief, y: iconY - 6,
+      duration: 1900, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
     });
 
-    // ── Title: TINY THIEF (two lines) ─────────────────────────
-    const titleTop = panelY - panelH / 2 + 32;
+    // ── Title ─────────────────────────────────────────────────
+    const titleY = 194;
 
-    // Shadow
-    this.add.text(cx + 3, titleTop + 3, 'TINY', {
+    // Drop shadow
+    this.add.text(cx + 4, titleY + 4, 'TINY THIEF', {
       fontFamily: '"Courier New", monospace',
-      fontSize: '72px', color: '#000000',
-      stroke: '#000000', strokeThickness: 8
-    }).setOrigin(0.5).setDepth(6).setAlpha(0.6);
+      fontSize: '76px', color: '#000000', stroke: '#000000', strokeThickness: 12,
+    }).setOrigin(0.5).setDepth(6).setAlpha(0.55);
 
-    this.add.text(cx + 3, titleTop + 76, 'THIEF', {
+    // Outer glow layer
+    this.add.text(cx, titleY, 'TINY THIEF', {
       fontFamily: '"Courier New", monospace',
-      fontSize: '72px', color: '#000000',
-      stroke: '#000000', strokeThickness: 8
-    }).setOrigin(0.5).setDepth(6).setAlpha(0.6);
+      fontSize: '76px', color: '#00ffee',
+      stroke: '#00ffee', strokeThickness: 14,
+      shadow: { offsetX: 0, offsetY: 0, color: '#00ffee', blur: 48, fill: true }
+    }).setOrigin(0.5).setDepth(7).setAlpha(0.18);
 
-    // Main title lines — cyan neon matching reference
-    const titleLine1 = this.add.text(cx, titleTop, 'TINY', {
+    // Main title
+    const title = this.add.text(cx, titleY, 'TINY THIEF', {
       fontFamily: '"Courier New", monospace',
-      fontSize: '72px', color: '#00e5ff',
+      fontSize: '76px', color: '#e0ffff',
       stroke: '#cc00ff', strokeThickness: 3,
-      shadow: { offsetX: 0, offsetY: 0, color: '#00ffee', blur: 32, fill: true }
-    }).setOrigin(0.5).setDepth(7);
+      shadow: { offsetX: 0, offsetY: 0, color: '#00eeff', blur: 24, fill: true }
+    }).setOrigin(0.5).setDepth(8);
 
-    const titleLine2 = this.add.text(cx, titleTop + 76, 'THIEF', {
-      fontFamily: '"Courier New", monospace',
-      fontSize: '72px', color: '#00e5ff',
-      stroke: '#cc00ff', strokeThickness: 3,
-      shadow: { offsetX: 0, offsetY: 0, color: '#00ffee', blur: 32, fill: true }
-    }).setOrigin(0.5).setDepth(7);
+    // Breathe
+    this.tweens.add({
+      targets: title, alpha: { from: 1, to: 0.84 },
+      duration: 2600, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
+    });
 
     // Tagline
-    this.add.text(cx, titleTop + 152, 'SNEAK  ·  STEAL  ·  SURVIVE', {
+    this.add.text(cx, titleY + 52, '— S N E A K   ·   S T E A L   ·   S U R V I V E —', {
       fontFamily: '"Courier New", monospace',
-      fontSize: '12px', color: '#aa88ff', letterSpacing: 3,
-      shadow: { offsetX: 0, offsetY: 0, color: '#cc88ff', blur: 6, fill: true }
-    }).setOrigin(0.5).setDepth(7);
+      fontSize: '11px', color: '#7755bb', letterSpacing: 1,
+      shadow: { offsetX: 0, offsetY: 0, color: '#aa66ff', blur: 8, fill: true }
+    }).setOrigin(0.5).setDepth(8);
 
-    // Title breathe
-    this.tweens.add({
-      targets: [titleLine1, titleLine2], alpha: { from: 1, to: 0.82 },
-      duration: 2400, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
-    });
+    // Separator line
+    const sep = this.add.graphics().setDepth(7);
+    sep.lineStyle(1, 0x6600cc, 0.5);
+    sep.lineBetween(cx - 140, titleY + 68, cx + 140, titleY + 68);
 
-    this._setupTitleGlitch(titleLine1, titleLine2, cx);
+    this._setupTitleGlitch(title, cx);
 
     // ── Menu buttons ──────────────────────────────────────────
     const menuItems = [
-      { label: 'PLAY',     y: panelY + 44,  action: () => this._doPlayTransition() },
-      { label: 'SETTINGS', y: panelY + 102, action: () => {} },
-      { label: 'QUIT',     y: panelY + 160, action: () => this._doQuit() },
+      { label: 'PLAY',     y: 326, action: () => this._doPlayTransition() },
+      { label: 'SETTINGS', y: 382, action: () => {} },
+      { label: 'QUIT',     y: 438, action: () => this._doQuit() },
     ];
 
     this._activeIdx = -1;
 
     menuItems.forEach((item, i) => {
-      const arrowX = cx - 112;
+      const baseX  = cx;
+      const arrowX = cx - 116;
 
-      const arrow = this.add.text(arrowX, item.y, '>', {
+      // Arrow
+      const arrow = this.add.text(arrowX, item.y, '▶', {
         fontFamily: '"Courier New", monospace',
-        fontSize: '20px', color: '#00e5ff',
-        shadow: { offsetX: 0, offsetY: 0, color: '#00ffff', blur: 10, fill: true }
-      }).setOrigin(0.5).setDepth(8).setAlpha(0);
+        fontSize: '14px', color: '#00ffcc',
+        shadow: { offsetX: 0, offsetY: 0, color: '#00ffcc', blur: 12, fill: true }
+      }).setOrigin(0.5).setDepth(9).setAlpha(0);
 
       let arrowTween = null;
 
-      const btn = this.add.text(cx, item.y, item.label, {
+      // Button label
+      const btn = this.add.text(baseX, item.y, item.label, {
         fontFamily: '"Courier New", monospace',
-        fontSize: '24px', color: '#b899ee',
-        stroke: '#110022', strokeThickness: 1,
-      }).setOrigin(0.5).setDepth(8).setInteractive({ useHandCursor: true });
+        fontSize: '26px', color: '#9988cc',
+        stroke: '#000000', strokeThickness: 1,
+      }).setOrigin(0.5).setDepth(9).setInteractive({ useHandCursor: true });
 
-      const tick = this.add.graphics().setDepth(7);
+      // Subtle underline line per button (hidden until hover)
+      const uline = this.add.graphics().setDepth(8);
 
       btn.on('pointerover', () => {
         this._activeIdx = i;
         btn.setStyle({
           color: '#ffffff',
-          shadow: { offsetX: 0, offsetY: 0, color: '#cc00ff', blur: 18, fill: true }
+          stroke: '#000000', strokeThickness: 2,
+          shadow: { offsetX: 0, offsetY: 0, color: '#ff00cc', blur: 22, fill: true }
         });
-        this.tweens.add({ targets: btn, x: cx + 12, duration: 80, ease: 'Power2' });
-        this.tweens.add({ targets: arrow, alpha: 1, x: arrowX + 10, duration: 80 });
+        this.tweens.add({ targets: btn, x: baseX + 14, duration: 70, ease: 'Power2' });
+        this.tweens.add({ targets: arrow, alpha: 1, x: arrowX + 10, duration: 70 });
 
         if (!arrowTween) {
           arrowTween = this.tweens.add({
-            targets: arrow, x: { from: arrowX + 10, to: arrowX + 20 },
-            duration: 400, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
+            targets: arrow, x: { from: arrowX + 10, to: arrowX + 22 },
+            duration: 380, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
           });
         }
 
-        tick.clear();
-        tick.lineStyle(1.5, 0x00cccc, 0.6);
-        tick.lineBetween(cx - 140, item.y - 12, cx - 140, item.y + 12);
+        uline.clear();
+        uline.lineStyle(1, 0x00ffcc, 0.45);
+        uline.lineBetween(baseX - 90, item.y + 16, baseX + 90, item.y + 16);
 
         try { this.sound.play('enter', { volume: 0.12 }); } catch(e) {}
       });
 
       btn.on('pointerout', () => {
-        btn.setStyle({ color: '#b899ee', shadow: undefined });
-        this.tweens.add({ targets: btn, x: cx, duration: 120, ease: 'Power2' });
-        this.tweens.add({ targets: arrow, alpha: 0, x: arrowX, duration: 120 });
+        btn.setStyle({ color: '#9988cc', stroke: '#000000', strokeThickness: 1, shadow: undefined });
+        this.tweens.add({ targets: btn, x: baseX, duration: 110, ease: 'Power2' });
+        this.tweens.add({ targets: arrow, alpha: 0, x: arrowX, duration: 110 });
         if (arrowTween) { arrowTween.stop(); arrowTween = null; }
-        tick.clear();
+        uline.clear();
       });
 
       btn.on('pointerdown', () => {
-        this.tweens.add({ targets: btn, alpha: 0.5, duration: 60, yoyo: true });
+        this.tweens.add({ targets: btn, alpha: 0.4, duration: 55, yoyo: true });
         item.action();
       });
     });
 
     // ── Scanlines ─────────────────────────────────────────────
-    const sl = this.add.graphics().setDepth(20).setAlpha(0.06);
+    const sl = this.add.graphics().setDepth(20).setAlpha(0.055);
     for (let y = 0; y < H; y += 4) {
       sl.lineStyle(1, 0x000000, 1);
       sl.lineBetween(0, y, W, y);
@@ -207,18 +202,29 @@ export default class MainMenuScene extends Phaser.Scene {
     this._muteBtn = new MuteButton(this);
     this.time.delayedCall(80, () => this._muteBtn.sync());
 
-    // ── Neon flicker ──────────────────────────────────────────
+    // ── Neon flicker scheduler ────────────────────────────────
     this._scheduleFlicker();
 
-    // ── Rain update ───────────────────────────────────────────
+    // ── Update loop: rain ─────────────────────────────────────
     this.events.on('update', () => {
-      rainGfx.clear();
-      rainDrops.forEach(d => {
-        d.y += d.speed; d.x -= 0.6;
+      // Background drops — thin, faint, pale blue
+      rainBg.clear();
+      dropsB.forEach(d => {
+        d.y += d.speed; d.x -= 0.4;
         if (d.y > H) { d.y = -d.len; d.x = Math.random() * W; }
         if (d.x < 0)  d.x = W;
-        rainGfx.lineStyle(1, 0xaaddff, d.alpha * 0.45);
-        rainGfx.lineBetween(d.x, d.y, d.x - 1, d.y + d.len);
+        rainBg.lineStyle(1, 0xbbddff, d.alpha);
+        rainBg.lineBetween(d.x, d.y, d.x - 1, d.y + d.len);
+      });
+
+      // Foreground drops — thicker, more visible, cyan tint
+      rainFg.clear();
+      dropsF.forEach(d => {
+        d.y += d.speed; d.x -= 0.8;
+        if (d.y > H) { d.y = -d.len; d.x = Math.random() * W; }
+        if (d.x < 0)  d.x = W;
+        rainFg.lineStyle(1.5, 0x99eeff, d.alpha);
+        rainFg.lineBetween(d.x, d.y, d.x - 1.5, d.y + d.len);
       });
     });
 
@@ -226,22 +232,23 @@ export default class MainMenuScene extends Phaser.Scene {
     this.cameras.main.fadeIn(700, 0, 0, 0);
   }
 
-  _setupTitleGlitch(line1, line2, cx) {
+  _setupTitleGlitch(title, cx) {
     this.time.addEvent({
-      delay: Phaser.Math.Between(3500, 6000),
+      delay: Phaser.Math.Between(3000, 5500),
       loop: true,
       callback: () => {
-        if (Math.random() > 0.4) return;
+        if (Math.random() > 0.45) return;
+        // Quick RGB split glitch
         const seq = [
-          { ox: 3, tint: 0x88ffff, dur: 40 },
-          { ox: -3, tint: 0xff88ff, dur: 40 },
-          { ox: 0,  tint: 0xffffff, dur: 60 },
+          { ox: 4,  tint: 0x00ffff, dur: 35 },
+          { ox: -4, tint: 0xff44ff, dur: 35 },
+          { ox: 2,  tint: 0xffff44, dur: 25 },
+          { ox: 0,  tint: 0xffffff, dur: 55 },
         ];
         let delay = 0;
         seq.forEach(s => {
           this.time.delayedCall(delay, () => {
-            line1.setX(cx + s.ox).setTint(s.tint);
-            line2.setX(cx + s.ox).setTint(s.tint);
+            title.setX(cx + s.ox).setTint(s.tint);
           });
           delay += s.dur;
         });
@@ -250,29 +257,42 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   _scheduleFlicker() {
-    this.time.addEvent({
-      delay: Phaser.Math.Between(4000, 8000),
-      loop: true,
-      callback: () => {
-        this._neonFlash.setFillStyle(0x3300aa);
-        this.tweens.add({
-          targets: this._neonFlash, alpha: { from: 0, to: 0.04 },
-          duration: 50, yoyo: true,
-          onComplete: () => {
-            try { this.sound.play('neon_buzz', { volume: 0.06 }); } catch(e) {}
-          }
+    // Randomised multi-burst neon flicker
+    const doFlicker = () => {
+      const bursts = Math.floor(Math.random() * 3) + 1; // 1–3 quick pops
+      let t = 0;
+      for (let i = 0; i < bursts; i++) {
+        this.time.delayedCall(t, () => {
+          const warm = Math.random() > 0.6;
+          const target = warm ? this._neonWarm : this._neonFlash;
+          target.setAlpha(0);
+          this.tweens.add({
+            targets: target,
+            alpha: { from: 0, to: warm ? 0.06 : 0.05 },
+            duration: 40, yoyo: true,
+            onComplete: () => {
+              try { this.sound.play('neon_buzz', { volume: 0.05 }); } catch(e) {}
+            }
+          });
         });
+        t += 90 + Math.random() * 60;
       }
-    });
+
+      // Schedule next flicker cluster
+      this.time.delayedCall(
+        Phaser.Math.Between(3000, 7500),
+        doFlicker
+      );
+    };
+
+    this.time.delayedCall(Phaser.Math.Between(1500, 3500), doFlicker);
   }
 
   _doPlayTransition() {
     this.input.enabled = false;
-
     const music = this.sound.get('menu_music');
     if (music) this.tweens.add({ targets: music, volume: 0.08, duration: 1000 });
     if (this._rainSound) this.tweens.add({ targets: this._rainSound, volume: 0.28, duration: 700 });
-
     this.time.delayedCall(900, () => {
       this.cameras.main.fadeOut(600, 0, 0, 0);
       this.cameras.main.once('camerafadeoutcomplete', () => {
