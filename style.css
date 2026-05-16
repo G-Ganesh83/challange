@@ -30,19 +30,13 @@ body {
 }
 
 #game-shell {
-  width: min(100vw, 1420px);
-  height: min(100vh, 960px);
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  padding: 16px;
-  gap: 14px;
+  /* Layout controlled by hud-hidden / hud-visible body classes */
+  width: 100%;
+  height: 100%;
 }
 
 #game {
-  border: 3px solid rgba(255, 220, 170, 0.12);
-  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.4);
   background: #1b1512;
   position: relative;
 }
@@ -64,10 +58,7 @@ body {
 }
 
 #content {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 292px;
-  gap: 16px;
-  align-items: start;
+  /* Layout set by hud-hidden / hud-visible */
 }
 
 #game-column {
@@ -80,20 +71,82 @@ body {
 }
 
 /* ── HUD visibility — hidden during menus/intros ─────────────── */
+
+/* FULLSCREEN MODE: canvas fills entire viewport, no shell layout */
+body.hud-hidden {
+  background: #000 !important;
+}
+
+body.hud-hidden #game-shell {
+  display: block;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
 body.hud-hidden #hud,
 body.hud-hidden #sidebar,
 body.hud-hidden #footer-hud {
-  visibility: hidden;
-  opacity: 0;
-  pointer-events: none;
+  display: none !important;
+}
+
+body.hud-hidden #content {
+  display: block;
+  height: 100vh;
+}
+
+body.hud-hidden #game-column {
+  width: 100%;
+  height: 100%;
+}
+
+body.hud-hidden #game {
+  width: 100% !important;
+  height: 100vh !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #000 !important;
+}
+
+/* GAME MODE: restore normal shell layout */
+body.hud-visible #game-shell {
+  width: min(100vw, 1420px);
+  height: min(100vh, 960px);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: 16px;
+  gap: 14px;
+}
+
+body.hud-visible #content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 292px;
+  gap: 16px;
+  align-items: start;
+}
+
+body.hud-visible #game {
+  border: 3px solid rgba(255, 220, 170, 0.12) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.4) !important;
 }
 
 body.hud-visible #hud,
 body.hud-visible #sidebar,
 body.hud-visible #footer-hud {
+  display: flex;
   visibility: visible;
   opacity: 1;
   transition: opacity 0.6s ease;
+}
+
+body.hud-visible #sidebar {
+  display: grid;
+}
+
+body.hud-visible #footer-hud {
+  display: block;
 }
 
 .title-card, .panel, #prompt, .noise-wrap {

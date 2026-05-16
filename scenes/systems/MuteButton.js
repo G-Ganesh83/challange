@@ -1,91 +1,114 @@
 /**
  * AudioButtons — two neon pixel-art icon buttons, top-right corner.
- *
- * Button 1 (AMBIENT):  controls music + rain. Icon = neon speaker/wave.
- * Button 2 (SFX):      controls fahh, footstep, pickup, etc. Icon = EQ bars.
- *
- * Global state on window._bgMuted / window._sfxMuted persists across scenes.
- *
- * Usage:
- *   import MuteButton from './systems/MuteButton.js';
- *   this._muteBtn = new MuteButton(scene);
- *   // after starting sounds:
- *   this._muteBtn.sync();
+ * Ambient (music+rain) + SFX buttons. Tooltip on hover.
+ * Persists across scenes via window._bgMuted / window._sfxMuted.
  */
 export default class MuteButton {
   constructor(scene, opts = {}) {
     this._scene = scene;
-    const baseX = opts.x ?? 910;
+    const baseX = opts.x ?? 916;
     const baseY = opts.y ?? 28;
-    const depth = opts.depth ?? 99;
+    const depth  = opts.depth ?? 99;
 
     if (window._bgMuted  === undefined) window._bgMuted  = false;
     if (window._sfxMuted === undefined) window._sfxMuted = false;
 
-    // Ambient button at baseX, SFX button 46px to the left
-    this._ambBtn = this._makeButton(baseX - 46, baseY, depth, '🔊', '#00ffee', () => this._toggleAmbient());
-    this._sfxBtn = this._makeButton(baseX,      baseY, depth, '🎚', '#aa44ff', () => this._toggleSfx());
+    // Ambient at baseX - 46, SFX at baseX
+    this._ambBtn = this._makeButton(baseX - 46, baseY, depth, '♪', '#00ffee', 'MUSIC', () => this._toggleAmbient());
+    this._sfxBtn = this._makeButton(baseX,      baseY, depth, '◈', '#aa44ff', 'SFX',   () => this._toggleSfx());
 
     this._updateVisuals();
   }
 
-  _makeButton(x, y, depth, iconChar, glowColor, onClick) {
+  _makeButton(x, y, depth, iconChar, glowColor, tooltipText, onClick) {
     const scene = this._scene;
+    const colorInt = Phaser.Display.Color.HexStringToColor(glowColor).color;
 
-    // Outer glow ring
+    // Outer glow ring graphics
     const ring = scene.add.graphics().setDepth(depth - 1);
-    ring._draw = (active) => {
+    ring._drawRing = (active) => {
       ring.clear();
       if (active) {
-        ring.lineStyle(2, Phaser.Display.Color.HexStringToColor(glowColor).color, 0.5);
-        ring.strokeCircle(x, y, 20);
+        ring.lineStyle(1.5, colorInt, 0.45);
+        ring.strokeCircle(x, y, 21);
+        // Inner dot
+        ring.fillStyle(colorInt, 0.08);
+        ring.fillCircle(x, y, 19);
       }
     };
 
     // BG circle
-    const bg = scene.add.circle(x, y, 17, 0x0a0618, 0.85)
-      .setStrokeStyle(1.5, Phaser.Display.Color.HexStringToColor(glowColor).color, 0.7)
+    const bg = scene.add.circle(x, y, 17, 0x08051a, 0.9)
+      .setStrokeStyle(1.5, colorInt, 0.6)
       .setDepth(depth)
       .setInteractive({ useHandCursor: true });
 
-    // Icon
+    // Icon text
     const icon = scene.add.text(x, y, iconChar, {
-      fontFamily: 'Arial', fontSize: '15px'
+      fontFamily: '"Courier New", monospace',
+      fontSize: '14px', color: glowColor
     }).setOrigin(0.5).setDepth(depth + 1);
+
+    // ── Tooltip ──────────────────────────────────────────────
+    const ttPad = 8;
+    const ttBg = scene.add.graphics().setDepth(depth + 5).setAlpha(0);
+    const ttText = scene.add.text(x, y - 36, tooltipText, {
+      fontFamily: '"Courier New", monospace',
+      fontSize: '10px', color: glowColor, letterSpacing: 1
+    }).setOrigin(0.5).setDepth(depth + 6).setAlpha(0);
+
+    const showTip = () => {
+      ttBg.clear();
+      const tw = ttText.width + ttPad * 2;
+      const th = ttText.height + ttPad;
+      ttBg.fillStyle(0x08051a, 0.92);
+      ttBg.fillRoundedRect(x - tw / 2, y - 44 - th / 2, tw, th, 4);
+      ttBg.lineStyle(1, colorInt, 0.6);
+      ttBg.strokeRoundedRect(x - tw / 2, y - 44 - th / 2, tw, th, 4);
+      scene.tweens.add({ targets: [ttBg, ttText], alpha: 1, duration: 120 });
+    };
+    const hideTip = () => {
+      scene.tweens.add({ targets: [ttBg, ttText], alpha: 0, duration: 120 });
+    };
 
     // Hover
     bg.on('pointerover', () => {
       scene.tweens.add({ targets: [bg, icon], scaleX: 1.15, scaleY: 1.15, duration: 80, ease: 'Power2' });
+      showTip();
     });
     bg.on('pointerout', () => {
       scene.tweens.add({ targets: [bg, icon], scaleX: 1, scaleY: 1, duration: 100, ease: 'Power2' });
+      hideTip();
     });
     bg.on('pointerdown', () => {
-      scene.tweens.add({ targets: [bg, icon], scaleX: 0.88, scaleY: 0.88, duration: 60,
+      scene.tweens.add({ targets: [bg, icon], scaleX: 0.85, scaleY: 0.85, duration: 60,
         yoyo: true, ease: 'Power2' });
+      hideTip();
       onClick();
     });
 
-    return { bg, icon, ring, x, y, glowColor };
+    return { bg, icon, ring, ttBg, ttText, x, y, glowColor, iconChar };
   }
 
   _updateVisuals() {
-    const ambActive  = !window._bgMuted;
-    const sfxActive  = !window._sfxMuted;
+    const ambActive = !window._bgMuted;
+    const sfxActive = !window._sfxMuted;
 
-    // Ambient button
+    // Ambient
     const ab = this._ambBtn;
-    ab.ring._draw(ambActive);
-    ab.icon.setAlpha(ambActive ? 1 : 0.35);
-    ab.bg.setAlpha(ambActive ? 0.9 : 0.55);
-    ab.icon.setText(window._bgMuted  ? '🔇' : '🔊');
+    ab.ring._drawRing(ambActive);
+    ab.icon.setAlpha(ambActive ? 1 : 0.3);
+    ab.bg.setAlpha(ambActive ? 0.92 : 0.5);
+    ab.icon.setText(window._bgMuted ? '♪̶' : '♪');
+    ab.icon.setColor(window._bgMuted ? '#443355' : ab.glowColor);
 
-    // SFX button
+    // SFX
     const sb = this._sfxBtn;
-    sb.ring._draw(sfxActive);
-    sb.icon.setAlpha(sfxActive ? 1 : 0.35);
-    sb.bg.setAlpha(sfxActive ? 0.9 : 0.55);
-    sb.icon.setText(window._sfxMuted ? '📵' : '🎚');
+    sb.ring._drawRing(sfxActive);
+    sb.icon.setAlpha(sfxActive ? 1 : 0.3);
+    sb.bg.setAlpha(sfxActive ? 0.92 : 0.5);
+    sb.icon.setText(window._sfxMuted ? '◇' : '◈');
+    sb.icon.setColor(window._sfxMuted ? '#443355' : sb.glowColor);
   }
 
   _toggleAmbient() {
@@ -101,12 +124,12 @@ export default class MuteButton {
   }
 
   _applyAmbient() {
-    const scene  = this._scene;
-    const muted  = window._bgMuted;
-    const music  = scene.sound.get('menu_music');
-    if (music) music.setVolume(muted ? 0 : 0.28);
-    const rain   = scene.sound.get('rain');
-    if (rain)  rain.setVolume(muted ? 0 : 0.18);
+    const scene = this._scene;
+    const muted = window._bgMuted;
+    const music = scene.sound.get('menu_music');
+    if (music) music.setVolume(muted ? 0 : 0.26);
+    const rain  = scene.sound.get('rain');
+    if (rain)  rain.setVolume(muted ? 0 : 0.16);
   }
 
   _applySfx() {
@@ -119,7 +142,7 @@ export default class MuteButton {
     });
   }
 
-  /** Call after starting bg sounds to apply current mute state */
+  /** Call after starting bg sounds to sync current mute state */
   sync() {
     this._applyAmbient();
     this._applySfx();
@@ -128,7 +151,11 @@ export default class MuteButton {
 
   destroy() {
     [this._ambBtn, this._sfxBtn].forEach(b => {
-      b.bg.destroy(); b.icon.destroy(); b.ring.destroy();
+      b.bg.destroy();
+      b.icon.destroy();
+      b.ring.destroy();
+      b.ttBg.destroy();
+      b.ttText.destroy();
     });
   }
 }

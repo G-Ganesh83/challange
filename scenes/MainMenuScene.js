@@ -1,4 +1,4 @@
-// MainMenuScene — polished rainy neon alley, cinematic thief, PLAY/SETTINGS/QUIT
+// MainMenuScene — polished fullscreen rainy neon alley, cinematic thief, PLAY/SETTINGS/QUIT
 import MuteButton from './systems/MuteButton.js';
 
 export default class MainMenuScene extends Phaser.Scene {
@@ -15,12 +15,10 @@ export default class MainMenuScene extends Phaser.Scene {
       .setDisplaySize(W, H).setDepth(0).setAlpha(0.88);
 
     // ── Layer 2: Dark atmosphere gradient ────────────────────
-    // Bottom darkening — anchors the ground
     const ground = this.add.graphics().setDepth(1);
     ground.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.75, 0.75);
     ground.fillRect(0, H * 0.55, W, H * 0.45);
 
-    // Top fade
     const topFade = this.add.graphics().setDepth(1);
     topFade.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.5, 0.5, 0, 0);
     topFade.fillRect(0, 0, W, H * 0.35);
@@ -28,7 +26,6 @@ export default class MainMenuScene extends Phaser.Scene {
     // ── Layer 3: Fog / depth layers ──────────────────────────
     const fog1 = this.add.rectangle(cx, H * 0.72, W, 180, 0x1a0d2e, 0.38).setDepth(2);
     const fog2 = this.add.rectangle(cx, H * 0.88, W, 120, 0x0a0618, 0.55).setDepth(2);
-    // Fog drift
     this.tweens.add({ targets: fog1, x: cx + 12, duration: 5000, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
     this.tweens.add({ targets: fog2, x: cx - 8,  duration: 7000, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
 
@@ -50,26 +47,21 @@ export default class MainMenuScene extends Phaser.Scene {
     const thief = this.add.image(175, 445, 'thief_idle_src')
       .setScale(2.0).setTint(0x080410).setDepth(5).setAlpha(0.9);
 
-    // Rim-light edge (separate faint copy, slightly offset, tinted purple)
     const thiefRim = this.add.image(173, 443, 'thief_idle_src')
       .setScale(2.0).setTint(0x4400aa).setDepth(4).setAlpha(0.25);
 
-    // Breathing bob
     this.tweens.add({
       targets: [thief, thiefRim], y: '+=5',
       duration: 2000, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
     });
-    // Subtle lean
     this.tweens.add({
       targets: [thief, thiefRim], angle: { from: -1, to: 1 },
       duration: 3200, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
     });
 
-    // Shadow puddle under thief
     this.add.ellipse(175, 480, 90, 20, 0x000000, 0.35).setDepth(4);
 
     // ── Layer 7: Title ───────────────────────────────────────
-    // Glow halo behind title
     const titleGlow = this.add.rectangle(cx, 148, 440, 80, 0x8800ff, 0.08).setDepth(6);
     this.tweens.add({
       targets: titleGlow, alpha: { from: 0.08, to: 0.18 },
@@ -92,12 +84,11 @@ export default class MainMenuScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(7);
 
     // Tagline
-    const tagline = this.add.text(cx, 210, 's n e a k  ·  s t e a l  ·  s u r v i v e', {
+    this.add.text(cx, 210, 'SNEAK  ·  STEAL  ·  SURVIVE', {
       fontFamily: '"Courier New", monospace',
-      fontSize: '13px', color: '#7755aa', letterSpacing: 1
+      fontSize: '13px', color: '#7755aa', letterSpacing: 2
     }).setOrigin(0.5).setDepth(7);
 
-    // Title pulse + RGB glitch
     this.tweens.add({
       targets: title, alpha: { from: 1, to: 0.88 },
       duration: 2400, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
@@ -106,47 +97,72 @@ export default class MainMenuScene extends Phaser.Scene {
 
     // ── Layer 8: Menu buttons ────────────────────────────────
     const menuItems = [
-      { label: 'PLAY',     y: 320 },
-      { label: 'SETTINGS', y: 378 },
-      { label: 'QUIT',     y: 436 },
+      { label: 'PLAY',     y: 320, action: () => this._doPlayTransition() },
+      { label: 'SETTINGS', y: 378, action: () => {} },
+      { label: 'QUIT',     y: 436, action: () => this._doQuit() },
     ];
 
+    this._activeIdx = -1;
+
     menuItems.forEach((item, i) => {
+      // Arrow indicator
+      const arrow = this.add.text(cx - 128, item.y, '>', {
+        fontFamily: '"Courier New", monospace',
+        fontSize: '22px', color: '#8800ff',
+        shadow: { offsetX: 0, offsetY: 0, color: '#aa44ff', blur: 10, fill: true }
+      }).setOrigin(0.5).setDepth(8).setAlpha(0);
+
+      // Arrow bounce tween reference
+      let arrowTween = null;
+
       const btn = this.add.text(cx, item.y, item.label, {
         fontFamily: '"Courier New", monospace',
         fontSize: '26px', color: '#9988bb',
         stroke: '#220033', strokeThickness: 1,
       }).setOrigin(0.5).setDepth(8).setInteractive({ useHandCursor: true });
 
-      // Indicator dash
-      const dash = this.add.text(cx - 110, item.y, '—', {
-        fontFamily: '"Courier New", monospace', fontSize: '16px', color: '#550088'
-      }).setOrigin(0.5).setDepth(8).setAlpha(0);
+      // Vertical tick line left of button
+      const tick = this.add.graphics().setDepth(7);
 
       btn.on('pointerover', () => {
+        this._activeIdx = i;
         btn.setStyle({
           color: '#ddccff',
           shadow: { offsetX: 0, offsetY: 0, color: '#bb66ff', blur: 14, fill: true }
         });
-        this.tweens.add({ targets: btn, x: cx + 8, duration: 90, ease: 'Power2' });
-        this.tweens.add({ targets: dash, alpha: 1, x: cx - 102, duration: 90 });
+        this.tweens.add({ targets: btn, x: cx + 10, duration: 80, ease: 'Power2' });
+        this.tweens.add({ targets: arrow, alpha: 1, x: cx - 118, duration: 80 });
+
+        if (!arrowTween) {
+          arrowTween = this.tweens.add({
+            targets: arrow, x: { from: cx - 118, to: cx - 108 },
+            duration: 420, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
+          });
+        }
+
+        // Accent tick line
+        tick.clear();
+        tick.lineStyle(1, 0x6600cc, 0.6);
+        tick.lineBetween(cx - 145, item.y - 14, cx - 145, item.y + 14);
+
         try { this.sound.play('enter', { volume: 0.12 }); } catch(e) {}
       });
 
       btn.on('pointerout', () => {
         btn.setStyle({ color: '#9988bb', shadow: undefined });
         this.tweens.add({ targets: btn, x: cx, duration: 120, ease: 'Power2' });
-        this.tweens.add({ targets: dash, alpha: 0, x: cx - 110, duration: 120 });
+        this.tweens.add({ targets: arrow, alpha: 0, x: cx - 128, duration: 120 });
+        if (arrowTween) { arrowTween.stop(); arrowTween = null; }
+        tick.clear();
       });
 
       btn.on('pointerdown', () => {
         this.tweens.add({ targets: btn, alpha: 0.5, duration: 60, yoyo: true });
-        if (item.label === 'PLAY')     this._doPlayTransition();
-        if (item.label === 'QUIT')     this._doQuit();
+        item.action();
       });
     });
 
-    // ── Layer 9: Scanlines (subtle) ──────────────────────────
+    // ── Layer 9: Scanlines ───────────────────────────────────
     const sl = this.add.graphics().setDepth(20).setAlpha(0.07);
     for (let y = 0; y < H; y += 4) {
       sl.lineStyle(1, 0x000000, 1);
@@ -183,7 +199,7 @@ export default class MainMenuScene extends Phaser.Scene {
     // ── Occasional neon flicker ──────────────────────────────
     this._scheduleFlicker();
 
-    // ── Rain update ──────────────────────────────────────────
+    // ── Rain + stars update loop ─────────────────────────────
     this.events.on('update', () => {
       rainGfx.clear();
       rainDrops.forEach(d => {
@@ -201,7 +217,6 @@ export default class MainMenuScene extends Phaser.Scene {
 
   _setupTitleGlitch(title) {
     const cx = 480;
-    // Occasional RGB glitch shift
     this.time.addEvent({
       delay: Phaser.Math.Between(3500, 6000),
       loop: true,

@@ -28,15 +28,21 @@ export default class MissionScene extends Phaser.Scene {
     }));
     const ptGfx = this.add.graphics().setDepth(2);
 
+    // Scanlines
+    const sl = this.add.graphics().setDepth(20).setAlpha(0.07);
+    for (let y = 0; y < H; y += 4) {
+      sl.lineStyle(1, 0x000000, 1);
+      sl.lineBetween(0, y, W, y);
+    }
+
     // ── Mission card ─────────────────────────────────────────
-    // Card background
-    const cardW = 480, cardH = 340;
+    const cardW = 500, cardH = 360;
     const cardX = cx - cardW / 2, cardY = cy - cardH / 2;
 
     // Card border glow
-    const cardGlow = this.add.rectangle(cx, cy, cardW + 8, cardH + 8, 0x8800ff, 0.25).setDepth(3);
+    const cardGlow = this.add.rectangle(cx, cy, cardW + 10, cardH + 10, 0x8800ff, 0.22).setDepth(3);
     this.tweens.add({
-      targets: cardGlow, alpha: { from: 0.25, to: 0.5 },
+      targets: cardGlow, alpha: { from: 0.22, to: 0.48 },
       duration: 1600, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
     });
 
@@ -44,6 +50,20 @@ export default class MissionScene extends Phaser.Scene {
     // Top accent line
     this.add.rectangle(cx, cardY + 2, cardW, 2, 0x8800ff, 1).setDepth(5);
     this.add.rectangle(cx, cardY + cardH - 2, cardW, 2, 0x00ffee, 0.6).setDepth(5);
+    // Side accent lines
+    this.add.rectangle(cardX + 2, cy, 2, cardH - 4, 0x440066, 0.5).setDepth(5);
+    this.add.rectangle(cardX + cardW - 2, cy, 2, cardH - 4, 0x440066, 0.5).setDepth(5);
+
+    // Corner decorations
+    const cornerGfx = this.add.graphics().setDepth(5);
+    const corners = [
+      [cardX + 1, cardY + 1], [cardX + cardW - 1, cardY + 1],
+      [cardX + 1, cardY + cardH - 1], [cardX + cardW - 1, cardY + cardH - 1]
+    ];
+    corners.forEach(([x, y]) => {
+      cornerGfx.fillStyle(0xaa44ff, 0.8);
+      cornerGfx.fillRect(x - 3, y - 3, 6, 6);
+    });
 
     // Header
     this.add.text(cx, cardY + 28, '── MISSION BRIEFING ──', {
@@ -51,47 +71,80 @@ export default class MissionScene extends Phaser.Scene {
       fontSize: '13px', color: '#6644aa', letterSpacing: 3
     }).setOrigin(0.5).setDepth(6);
 
-    this.add.text(cx, cardY + 56, 'NIGHT 1', {
+    this.add.text(cx, cardY + 60, 'NIGHT 1', {
       fontFamily: '"Courier New", monospace',
-      fontSize: '36px', color: '#ffffff',
+      fontSize: '40px', color: '#ffffff',
       stroke: '#8800ff', strokeThickness: 2,
-      shadow: { offsetX: 0, offsetY: 0, color: '#aa44ff', blur: 18, fill: true }
+      shadow: { offsetX: 0, offsetY: 0, color: '#aa44ff', blur: 22, fill: true }
     }).setOrigin(0.5).setDepth(6);
 
-    // Divider
-    this.add.rectangle(cx, cardY + 88, cardW - 60, 1, 0x442266, 1).setDepth(6);
+    // Divider with diamonds
+    this.add.rectangle(cx, cardY + 94, cardW - 60, 1, 0x442266, 1).setDepth(6);
+    this.add.text(cx, cardY + 90, '◆', {
+      fontFamily: '"Courier New", monospace', fontSize: '10px', color: '#6600cc'
+    }).setOrigin(0.5).setDepth(6);
 
     // Data rows
     const rows = [
-      { label: 'TARGET',        value: 'Apartment 01',   color: '#ffffff' },
-      { label: 'LOOT',          value: '3 ITEMS',         color: '#ffdd44' },
-      { label: 'OWNER STATUS',  value: 'Sleeping  💤',    color: '#44ffaa' },
-      { label: 'TIME LIMIT',    value: '90 SECONDS',      color: '#ff6644' },
+      { label: 'TARGET',       value: 'Apartment 01',  color: '#ffffff' },
+      { label: 'LOOT',         value: '3 ITEMS',        color: '#ffdd44' },
+      { label: 'OWNER STATUS', value: 'Sleeping  \u{1F4A4}', color: '#44ffaa' },
+      { label: 'TIME LIMIT',   value: '90 SECONDS',     color: '#ff6644' },
     ];
 
     rows.forEach((row, i) => {
-      const rowY = cardY + 118 + i * 46;
-      this.add.text(cardX + 50, rowY, row.label, {
+      const rowY = cardY + 118 + i * 48;
+      // Row separator
+      if (i > 0) {
+        this.add.rectangle(cx, rowY - 6, cardW - 80, 1, 0x221133, 0.6).setDepth(6);
+      }
+      this.add.text(cardX + 54, rowY, row.label, {
         fontFamily: '"Courier New", monospace',
-        fontSize: '12px', color: '#554488', letterSpacing: 2
+        fontSize: '11px', color: '#554488', letterSpacing: 2
       }).setDepth(6);
-      this.add.text(cardX + 50, rowY + 18, row.value, {
+      this.add.text(cardX + 54, rowY + 18, row.value, {
         fontFamily: '"Courier New", monospace',
         fontSize: '20px', color: row.color,
         shadow: { offsetX: 0, offsetY: 0, color: row.color, blur: 8, fill: true }
       }).setDepth(6);
     });
 
-    // ── Prompt ───────────────────────────────────────────────
-    const prompt = this.add.text(cx, cardY + cardH + 44, 'Press SPACE to begin the heist', {
-      fontFamily: '"Courier New", monospace',
-      fontSize: '18px', color: '#00ffee',
-      shadow: { offsetX: 0, offsetY: 0, color: '#00ffee', blur: 12, fill: true }
-    }).setOrigin(0.5).setDepth(6);
+    // ── Press SPACE key visual ────────────────────────────────
+    const keyY = cardY + cardH + 48;
 
+    // Keyboard key frame
+    const keyW = 92, keyH = 34;
+    const keyBg = this.add.graphics().setDepth(7);
+    keyBg.fillStyle(0x1a0d36, 0.95);
+    keyBg.fillRoundedRect(cx - keyW / 2, keyY - keyH / 2, keyW, keyH, 6);
+    keyBg.lineStyle(2, 0x8800ff, 0.9);
+    keyBg.strokeRoundedRect(cx - keyW / 2, keyY - keyH / 2, keyW, keyH, 6);
+    // Key bottom shadow (3D effect)
+    keyBg.lineStyle(3, 0x440066, 0.6);
+    keyBg.lineBetween(cx - keyW / 2 + 4, keyY + keyH / 2 + 2, cx + keyW / 2 - 4, keyY + keyH / 2 + 2);
+
+    this.add.text(cx, keyY, 'SPACE', {
+      fontFamily: '"Courier New", monospace',
+      fontSize: '14px', color: '#ddccff',
+      shadow: { offsetX: 0, offsetY: 0, color: '#8800ff', blur: 8, fill: true }
+    }).setOrigin(0.5).setDepth(8);
+
+    // "to begin" label
+    const promptLabel = this.add.text(cx, keyY + 30, 'to begin the heist', {
+      fontFamily: '"Courier New", monospace',
+      fontSize: '13px', color: '#665588', letterSpacing: 2
+    }).setOrigin(0.5).setDepth(7);
+
+    // Key press pulse animation
     this.tweens.add({
-      targets: prompt, alpha: { from: 1, to: 0.2 },
-      duration: 900, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
+      targets: [keyBg, promptLabel], alpha: { from: 1, to: 0.35 },
+      duration: 800, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
+    });
+
+    // Key shadow bob
+    this.tweens.add({
+      targets: keyBg, y: { from: 0, to: 2 },
+      duration: 800, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
     });
 
     // ── Soft music continuation ──────────────────────────────
@@ -106,16 +159,10 @@ export default class MissionScene extends Phaser.Scene {
     // ── Input ────────────────────────────────────────────────
     this._ready = false;
     this.input.keyboard.once('keydown-SPACE', () => this._startHeist());
-
-    // Also support click/tap
     this.input.once('pointerdown', () => this._startHeist());
 
-    // ── Particle + card fade-in ──────────────────────────────
+    // ── Particle + fade in ───────────────────────────────────
     this.cameras.main.fadeIn(500, 0, 0, 0);
-
-    // Slide card in from below
-    const cardObjects = [cardGlow];
-    this.add.tween = undefined; // dummy
 
     // ── Update loop ──────────────────────────────────────────
     this.events.on('update', () => {
