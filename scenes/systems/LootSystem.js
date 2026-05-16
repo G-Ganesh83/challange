@@ -107,19 +107,19 @@ export default class LootSystem {
 
     const s = this.scene;
     if (item.id === 'bottle') {
-      s.noiseSystem.add(item.noise ?? 0.45);
+      s.noiseSystem.add(item.noise ?? 0.45, 'loot');
       s.playSfx('pickup', { minGap: 180, volume: item.volume ?? 0.55 });
       s.screenShake(item.shake ?? 12);
-      s.updatePrompt(`Bottle collected. (${this.collectedCount}/${this.total})`);
+      s.updatePrompt(`Loot collected (${this.collectedCount}/${this.total})`, 'success');
     } else {
-      s.noiseSystem.add(item.noise ?? 0.06);
+      s.noiseSystem.add(item.noise ?? 0.06, 'loot');
       s.playSfx('pickup', { minGap: 180, volume: item.volume ?? 0.45 });
       s.screenShake(item.shake ?? 6);
-      s.updatePrompt(`${item.prompt || 'Loot secured.'} ${this.collectedCount}/${this.total} collected.`);
+      s.updatePrompt(`${item.prompt || 'Loot secured.'} ${this.collectedCount}/${this.total}`, 'success');
     }
 
     if (this.allCollected()) {
-      s.updatePrompt('All loot secured. Head for the exit.');
+      s.updatePrompt('All loot secured. Head for the exit.', 'success');
     }
   }
 

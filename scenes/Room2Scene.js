@@ -43,6 +43,9 @@ export default class Room2Scene extends Phaser.Scene {
     this._cableNoiseArmed   = true;
     this.currentPlayerTexture = null;
     this.playerDimmed       = false;
+    this.catchContactMs     = 0;
+    this.lastRunNoiseAt     = 0;
+    this.toastTimer         = null;
   }
 
   /* ───────────────────────── PRELOAD ───────────────────────── */
@@ -89,6 +92,10 @@ export default class Room2Scene extends Phaser.Scene {
     // Show game HUD for Room 2
     document.body.classList.remove('hud-hidden');
     document.body.classList.add('hud-visible');
+    document.getElementById('end-screen')?.classList.add('hidden');
+    document.getElementById('message-toast')?.classList.add('hidden');
+    this.input.enabled = true;
+    this.physics.world.resume();
 
     // Reset all flags
     this.chaseMode          = false;
@@ -113,6 +120,8 @@ export default class Room2Scene extends Phaser.Scene {
     this.playerDimmed       = false;
     this.playerOutline      = null;
     this.debugWallsEnabled  = new URLSearchParams(window.location.search).has('debugWalls');
+    this.catchContactMs     = 0;
+    this.lastRunNoiseAt     = 0;
 
     // Systems
     this.noiseSystem     = new NoiseSystem(this);
@@ -458,10 +467,10 @@ export default class Room2Scene extends Phaser.Scene {
 
     // Pickup FX
     this._spawnPickupFX(item.sprite.x, item.sprite.y);
-    this.noiseSystem.add(item.noise ?? 0.06);
+    this.noiseSystem.add(item.noise ?? 0.06, 'loot');
     this.playSfx('pickup', { minGap:180, volume:0.55 });
     this.screenShake(item.shake ?? 6);
-    this.updatePrompt(`${item.prompt} (${this._lootCollected}/${this._lootTotal})`);
+    this.updatePrompt(`${item.prompt} (${this._lootCollected}/${this._lootTotal})`, 'success');
 
     // Tween + hide
     const sx=item.sprite.scaleX, sy=item.sprite.scaleY;
@@ -475,7 +484,7 @@ export default class Room2Scene extends Phaser.Scene {
     if (item.ring)   item.ring.setVisible(false);
 
     if (this._lootCollected >= this._lootTotal) {
-      this.updatePrompt('All 5 items secured! Get to the EXIT!');
+      this.updatePrompt('All 5 items secured. Get to the EXIT.', 'success');
     }
   }
 
@@ -567,6 +576,7 @@ export default class Room2Scene extends Phaser.Scene {
       fahh:           this.sound.add('fahh',            { volume:0.92 }),
       enter:          this.sound.add('enter',           { volume:0.6  }),
       pickup:         this.sound.add('pickup',          { volume:0.55 }),
+      door_unlock:    this.sound.add('door_unlock',     { volume:0.65 }),
       coreTransition: this.sound.add('coreTransition',  { volume:0.75 }),
       out:            this.sound.add('out',             { volume:0.6  }),
       safe:           this.sound.add('safe',            { volume:0.5  }),
@@ -622,6 +632,7 @@ export default class Room2Scene extends Phaser.Scene {
     this._updateExitGlow(time);
     this._updateCableZone(time);
     this._updateLootAmbient(time);
+    this._updateCatchContact(delta);
   }
 
   /* ─────────────────────── PLAYER LOGIC ────────────────────── */
@@ -640,10 +651,29 @@ export default class Room2Scene extends Phaser.Scene {
     this.player.body.velocity.y = Phaser.Math.Linear(this.player.body.velocity.y, target.y, 0.28);
 
     if (moving && this.cursors.SHIFT.isDown) {
-      this.noiseSystem.add(0.14 * Math.max(0, delta ?? 16) / 1000); // slightly more noise in room 2
+      this.noiseSystem.add(0.14 * Math.max(0, delta ?? 16) / 1000, 'run'); // slightly more noise in room 2
+      if (this.time.now - (this.lastRunNoiseAt ?? 0) > 620) {
+        this.lastRunNoiseAt = this.time.now;
+        this.handleSoundEvent(0.13, 'run');
+      }
     }
     this.player.setDrag(1000, 1000);
     this._updatePlayerAnimation({ moving, left, right, up, down });
+  }
+
+  handleSoundEvent(intensity, source = 'noise') {
+    if (!this.ownerAI || this.gameOver || this.roomCompleted) return;
+    if (this.isPlayerInSafeZone()) this.safeZoneEnterAt = this.time.now;
+    const mappedIntensity = this.mapSoundIntensity(intensity, source);
+    this.ownerAI.reactToSound(mappedIntensity, source);
+  }
+
+  mapSoundIntensity(intensity, source) {
+    if (source === 'loot') return intensity >= 0.12 ? 0.32 : 0.17;
+    if (source === 'run') return Math.max(intensity, 0.16);
+    if (source === 'bump') return Math.max(intensity, 0.14);
+    if (source === 'cable') return Math.max(intensity, 0.16);
+    return intensity;
   }
 
   _handleInteract(time) {
@@ -729,15 +759,15 @@ export default class Room2Scene extends Phaser.Scene {
       if (!this.wallBumpArmed) return;
       this.wallBumpArmed = false;
     }
-    this.noiseSystem.add(0.09);
-    this.playSfx('fahh', { minGap:180, delay:10 });
+    this.noiseSystem.add(0.09, 'bump');
+    this.playSfx('fahh', { minGap:180, delay:10, volume:0.34 });
     this._bumpPlayerFromSideWall(solid);
     if (this.chaseMode) { this.screenShake(16); return; }
     if (this.noiseSystem.noise >= this.ownerAI?.cfg?.wakeThreshold ?? 0.72) {
-      this.updatePrompt('Wall bump! The owner stirred...');
+      this.updatePrompt('Wall bump. The owner stirred.', 'warning');
     } else {
       this.screenShake(10);
-      this.updatePrompt('Careful... walls carry sound.');
+      this.updatePrompt('Careful. Walls carry sound.', 'warning');
     }
   }
 
@@ -774,11 +804,10 @@ export default class Room2Scene extends Phaser.Scene {
                      this.cursors.LEFT.isDown || this.cursors.RIGHT.isDown ||
                      this.cursors.UP.isDown || this.cursors.DOWN.isDown;
       if (moving) {
-        this.noiseSystem.add(0.06);
+        this.noiseSystem.add(0.06, 'cable');
         if (this._cableNoiseArmed) {
           this._cableNoiseArmed = false;
-          this.updatePrompt('CABLE ZONE — wires everywhere, watch your step!');
-          this.playSfx('fahh', { minGap:1200, volume:0.3 });
+          this.updatePrompt('Cable zone. Watch your step.', 'warning');
         }
       }
     }
@@ -792,12 +821,17 @@ export default class Room2Scene extends Phaser.Scene {
   _updateSafeZoneTransition(time) {
     const inSafe = this.isPlayerInSafeZone();
     if (inSafe) {
+      if (this.safeZoneEnterAt == null) this.safeZoneEnterAt = time;
       if (this.safeZoneSoundArmed) {
         this.safeZoneSoundArmed = false; this.safeZoneEnterAt = time;
         this.playSfx('safe', { minGap:700 });
-        this.updatePrompt('Safe zone: wardrobe. Stay quiet.');
+        this.updatePrompt('Safe zone entered', 'info');
+        this._showHideTension(true);
       }
-    } else { this.safeZoneEnterAt=null; this.safeZoneSoundArmed=true; }
+    } else {
+      this.safeZoneEnterAt=null; this.safeZoneSoundArmed=true;
+      this._showHideTension(false);
+    }
 
     if (this.player && !this.hidden) {
       if (inSafe && !this.playerDimmed) {
@@ -815,6 +849,7 @@ export default class Room2Scene extends Phaser.Scene {
 
   _updateOwnerState(time) {
     if (!this.chaseMode) {
+      if (this.owner.state === 'alert' || this.owner.state === 'searching') return;
       this.setOwnerBreathing(true);
       const sleepTex = this.textures.exists('r2_owner_sleep') ? 'r2_owner_sleep' : 'r2_owner_src';
       this.owner.setTexture(sleepTex).setScale(0.24).setVisible(true);
@@ -845,7 +880,8 @@ export default class Room2Scene extends Phaser.Scene {
       this.player.body.enable = false;
       this.player.setVelocity(0, 0);
       this.playSfx('enter', { minGap:900, delay:40 });
-      this.updatePrompt('Hidden in wardrobe. Don\'t breathe.');
+      this.updatePrompt('Hidden. Stay quiet.', 'info');
+      this._showHideTension(true);
     }
   }
 
@@ -857,14 +893,14 @@ export default class Room2Scene extends Phaser.Scene {
     if (!this._allLootCollected()) {
       if (this.exitPromptMode!=='blocked') {
         this.exitPromptVisible=true; this.exitPromptMode='blocked';
-        this.updatePrompt(`Missing loot! (${this._lootCollected}/${this._lootTotal}) — grab everything first!`);
+        this.updatePrompt(`Need all loot before escaping (${this._lootCollected}/${this._lootTotal})`, 'warning');
         this._onExitDenied();
       }
       return;
     }
     if (this.exitPromptMode!=='ready') {
       this.exitPromptVisible=true; this.exitPromptMode='ready';
-      this.updatePrompt('All loot secured! Press E to escape!');
+      this.updatePrompt('All loot secured. Press E to escape.', 'success');
     }
     if (!Phaser.Input.Keyboard.JustDown(this.cursors.E)) return;
     this._completeRoom();
@@ -875,31 +911,62 @@ export default class Room2Scene extends Phaser.Scene {
     this.roomCompleted=true; this.gameOver=true;
     this.timerSystem.stop();
     this.player.setVelocity(0,0); this.owner.setVelocity(0,0);
-    this.playSfx('success', { minGap:2000, delay:70 });
-    this.cameras.main.fade(900, 0, 10, 20);
-    this.updatePrompt('ESCAPED! All 5 items secured. Ghost.');
-    this.time.delayedCall(1000, () => this.rankSystem.showEscapeScreen());
+    this.input.enabled = false;
+    this.playSfx('door_unlock', { minGap:1200, volume:0.65 });
+    this.playSfx('success', { minGap:2000, delay:520 });
+    this.cameras.main.fade(1150, 0, 10, 20);
+    this.updatePrompt('Escaping...', 'success');
+    this.time.delayedCall(1250, () => this.rankSystem.showEscapeScreen());
   }
 
   onCaught() {
     if (this.gameOver) return;
     if (this.hidden) return;
-    if (this.isPlayerInSafeZone()) return;
+    if (!this._isOwnerCatchActive()) return;
     this.gameOver = true;
     this.timerSystem.stop();
+    this.input.enabled = false;
     this.player.setVelocity(0,0);
     this.owner.setVelocity(0,0);
     this.player.body.enable = false;
-    this.updatePrompt('BUSTED! The gamer woke up and caught you.');
-    this.screenShake(200);
-    this.flashRed();
-    this.cameras.main.flash(320, 200, 0, 0);
-    this.sound.play('fahh', { volume:1.0, rate:0.78, detune:-320 });
-    this.add.text(480, 312, 'BUSTED!', {
-      fontFamily:'"Press Start 2P"', fontSize:'30px',
-      color:'#fffbf2', stroke:'#a51f1f', strokeThickness:6
-    }).setOrigin(0.5).setDepth(200);
-    this.time.delayedCall(1600, () => this.rankSystem.showBustedScreen());
+    this.updatePrompt('CAUGHT', 'danger');
+    this.playSfx('fahh', { volume:1.0, rate:0.78, detune:-320 });
+    this.playSfx('coreTransition', { volume:0.65, delay:80 });
+    this.physics.world.pause();
+    this.time.delayedCall(150, () => {
+      this.screenShake(200);
+      this.flashRed();
+      this.cameras.main.flash(320, 200, 0, 0);
+    });
+    this.time.delayedCall(760, () => this.rankSystem.showBustedScreen());
+  }
+
+  _updateCatchContact(delta) {
+    if (this.gameOver || this.hidden || !this._isOwnerCatchActive() || !this.player?.body || !this.owner?.body) {
+      this.catchContactMs = 0;
+      return;
+    }
+    const touching = this._isOwnerTouchingPlayer();
+    this.catchContactMs = touching ? this.catchContactMs + (delta ?? 16) : 0;
+    if (this.catchContactMs >= 120) this.onCaught();
+  }
+
+  _isOwnerCatchActive() {
+    return this.chaseMode || this.owner?.state === 'alert' || this.owner?.state === 'searching' || this.owner?.state === 'chase';
+  }
+
+  _isOwnerTouchingPlayer() {
+    if (this.physics.overlap(this.player, this.owner)) return true;
+    const pb = this.player.body;
+    const ob = this.owner.body;
+    if (!pb || !ob) return false;
+    const bodyTouch = Phaser.Math.Distance.Between(pb.center.x, pb.center.y, ob.center.x, ob.center.y) <= 56;
+    if (bodyTouch) return true;
+
+    // The alert/chase artwork is larger than its Arcade body. During an actual
+    // chase, use sprite centers as a final close-contact fallback so visible
+    // body contact cannot miss.
+    return this.chaseMode && Phaser.Math.Distance.Between(this.player.x, this.player.y, this.owner.x, this.owner.y) <= 108;
   }
 
   _onExitDenied() {
@@ -1001,7 +1068,7 @@ export default class Room2Scene extends Phaser.Scene {
     const interval  = sprinting?175:255, volume=sprinting?0.22:0.16;
     if (time-this.lastFootstepAt < interval) return;
     this.lastFootstepAt = time;
-    this.sound.play('footstep', { volume, rate:sprinting?1.08:1.0, detune:sprinting?10:0 });
+    if (!AM.sfxMuted) this.sound.play('footstep', { volume, rate:sprinting?1.08:1.0, detune:sprinting?10:0 });
   }
 
   playSfx(key, options={}) {
@@ -1057,7 +1124,7 @@ export default class Room2Scene extends Phaser.Scene {
     el.style.borderColor = alert ? '#00fff7' : '#5a3a2c';
   }
 
-  updatePrompt(text) {
+  updatePrompt(text, type = 'info') {
     const el = this.promptEl; if (!el) return;
     el.style.opacity='0.72'; el.style.transform='translateY(2px) scale(0.99)';
     window.clearTimeout(this.promptResetTimer);
@@ -1065,6 +1132,32 @@ export default class Room2Scene extends Phaser.Scene {
     this.promptResetTimer = window.setTimeout(() => {
       el.style.opacity='1'; el.style.transform='translateY(0) scale(1)';
     }, 20);
+    this._showNotification(text, type);
+  }
+
+  _showNotification(text, type = 'info') {
+    const toast = document.getElementById('message-toast');
+    const body = document.getElementById('message-toast-text');
+    if (!toast || !body) return;
+    body.textContent = text;
+    toast.classList.remove('hidden','message-info','message-warning','message-success','message-danger');
+    toast.classList.add(`message-${type}`);
+    window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => toast.classList.add('hidden'), type === 'danger' ? 2200 : 1700);
+  }
+
+  _showHideTension(active) {
+    if (!this.hideTensionOverlay) {
+      this.hideTensionOverlay = this.add.rectangle(0,0,960,640,0x000000,0)
+        .setOrigin(0).setDepth(98).setBlendMode(Phaser.BlendModes.MULTIPLY);
+    }
+    this.tweens.killTweensOf(this.hideTensionOverlay);
+    this.tweens.add({
+      targets: this.hideTensionOverlay,
+      alpha: active ? 0.18 : 0,
+      duration: 260,
+      ease: 'Sine.out'
+    });
   }
 
   setOwnerBreathing(active) {

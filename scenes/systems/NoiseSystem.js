@@ -20,13 +20,11 @@ export default class NoiseSystem {
     this.totalAccumulated = 0;
   }
 
-  add(amount) {
+  add(amount, source = 'noise') {
     const v = Math.max(0, amount);
     this.totalAccumulated += v;
     this.noise = Phaser.Math.Clamp(this.noise + v, 0, 1);
-    if (this.noise > 0.45 && !this.scene.chaseMode) {
-      this.scene.updatePrompt('Uh oh. The noise meter is getting rude.');
-    }
+    if (typeof this.scene.handleSoundEvent === 'function') this.scene.handleSoundEvent(v, source);
   }
 
   /** Call each frame. Decay rate is tiered — higher suspicion lingers longer. */

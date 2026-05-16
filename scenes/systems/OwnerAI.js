@@ -56,47 +56,27 @@ export default class OwnerAI {
       return;
     }
 
-    // Stir bubble — mid suspicion
+    // Suspicion is now internal only; visible gameplay reacts to sound events.
     if (noise >= this.cfg.stirThreshold && noise < this.cfg.wakeThreshold) {
       const now = s.time.now;
       if (now - this.lastStirAt > this.cfg.stirCooldown) {
-        this.lastStirAt = now;
-        s.ownerWakeBurst('?');
-        s.sound.play('coreTransition', { volume: 0.18, rate: 1.12, detune: 40 });
-        s.updatePrompt('Shh... the owner is stirring.');
+        this.reactToSound(0.05, 'stir');
       }
     }
 
     // Alert phase — owner wakes up and looks around before chasing
     // Triggers from sleeping OR patrol state
     if (noise >= this.cfg.wakeThreshold && (owner.state === 'sleeping' || owner.state === 'patrol')) {
-      owner.state = 'alert';
-      this._alertPhaseUntil = s.time.now + 2200; // 2.2s looking around
-      s.setOwnerBreathing(false);
-      owner.setTexture('owner_alert');
-      owner.setScale(this.alertScale);
-      owner.setVisible(true);
-      s.tweens.killTweensOf(owner);
-      s.ownerWakeBurst('!?');
-      s.playSfx('coreTransition', { minGap: 1200, delay: 120 });
-      s.screenShake(20);
-      s.flashRed();
-      s.updatePrompt('The owner heard something... they\'re looking around!');
+      this.reactToSound(0.16, 'search');
       return;
     }
 
-    // Still in alert phase — stand still, look around
-    if (owner.state === 'alert') {
+    // Still in alert/searching phase — stand still, look around
+    if (owner.state === 'alert' || owner.state === 'searching') {
       owner.setVelocity(0, 0);
       // Noise still high OR time elapsed → escalate to full chase
       if (s.time.now >= this._alertPhaseUntil) {
-        s.chaseMode = true;
-        s.chaseModeHappened = true;
-        owner.state = 'chase';
-        s.playSfx('fahh', { minGap: 800, delay: 80 });
-        s.screenShake(50);
-        s.ownerWakeBurst('!!!');
-        s.updatePrompt('OWNER IS COMING FOR YOU. RUN OR HIDE!');
+        this.forceChase('search');
       }
       return;
     }
@@ -107,6 +87,70 @@ export default class OwnerAI {
     } else {
       owner.setVelocity(0, 0);
     }
+  }
+
+  reactToSound(intensity = 0.04, source = 'noise') {
+    const s = this.scene;
+    const { owner } = s;
+    if (!owner || s.gameOver || s.roomCompleted) return;
+    if (s.hidden && intensity < 0.10) return;
+
+    const now = s.time.now;
+    if (intensity >= 0.28) {
+      this.forceChase(source);
+      return;
+    }
+
+    if (intensity >= 0.10) {
+      if (owner.state === 'chase' || s.chaseMode) return;
+      owner.state = 'searching';
+      this._alertPhaseUntil = now + 1900;
+      if (s.hidden) s.hiddenSuccessfully = true;
+      s.setOwnerBreathing(false);
+      owner.setTexture('owner_alert');
+      owner.setScale(this.alertScale);
+      owner.setVisible(true);
+      s.tweens.killTweensOf(owner);
+      s.ownerWakeBurst('!?');
+      s.playSfx('coreTransition', { minGap: 900, delay: 60, volume: 0.45 });
+      s.screenShake(10);
+      s.flashRed();
+      s.updatePrompt(source === 'run' ? 'Loud footsteps. Hide quickly!' : 'Owner woke up!', 'warning');
+      return;
+    }
+
+    if (now - this.lastStirAt > this.cfg.stirCooldown) {
+      this.lastStirAt = now;
+      if (owner.state === 'sleeping' || owner.state === 'patrol') owner.state = 'disturbed';
+      s.ownerWakeBurst('?');
+      s.playSfx('coreTransition', { minGap: 700, volume: 0.18, rate: 1.12, detune: 40 });
+      s.updatePrompt('The owner stirred...', 'warning');
+      s.time.delayedCall(900, () => {
+        if (!s.chaseMode && owner.state === 'disturbed') {
+          owner.state = this.cfg.patrolPoints?.length ? 'patrol' : 'sleeping';
+        }
+      });
+    }
+  }
+
+  forceChase(source = 'noise') {
+    const s = this.scene;
+    const { owner } = s;
+    if (!owner || s.gameOver || s.roomCompleted) return;
+    s.chaseMode = true;
+    s.chaseModeHappened = true;
+    owner.state = 'chase';
+    this._alertPhaseUntil = 0;
+    s.setOwnerBreathing(false);
+    owner.setTexture('owner_alert');
+    owner.setScale(this.alertScale);
+    owner.setVisible(true);
+    s.tweens.killTweensOf(owner);
+    s.playSfx('coreTransition', { minGap: 700, volume: 0.72 });
+    s.screenShake(28);
+    s.flashRed();
+    s.ownerWakeBurst('!!!');
+    s.updatePrompt(source === 'loot' ? 'Loud loot! Run or hide!' : 'Owner is chasing you!', 'danger');
   }
 
   _handlePatrol(dt) {

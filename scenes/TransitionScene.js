@@ -7,6 +7,7 @@ export default class TransitionScene extends Phaser.Scene {
     this._nextScene = data.nextScene || 'Room2Scene';
     this._night     = data.night     || 2;
     this._lootCount = data.lootCount || 0;
+    this._subtitle  = data.subtitle  || 'Gaming Apartment';
   }
 
   create() {
@@ -171,17 +172,24 @@ export default class TransitionScene extends Phaser.Scene {
       ease: 'Cubic.easeIn', delay: 500
     });
 
-    // ── Night text ────────────────────────────────────────────
-    const nightText = this.add.text(cx, cy - 50, `NIGHT ${this._night}`, {
+    // ── Transition text ───────────────────────────────────────
+    const escapingText = this.add.text(cx, cy - 84, 'Escaping...', {
+      fontFamily: '"Poppins", Arial, sans-serif',
+      fontSize: '24px', color: '#aeeeff',
+      shadow: { offsetX: 0, offsetY: 0, color: '#00eeff', blur: 20, fill: true }
+    }).setOrigin(0.5).setDepth(7).setAlpha(0);
+
+    const nightText = this.add.text(cx, cy - 30, `NIGHT ${this._night}`, {
       fontFamily: '"Courier New", monospace',
       fontSize: '72px', color: '#ffffff',
       stroke: '#8800ff', strokeThickness: 3,
       shadow: { offsetX: 0, offsetY: 0, color: '#aa44ff', blur: 28, fill: true }
     }).setOrigin(0.5).setDepth(7).setAlpha(0);
 
-    const subLine = this.add.text(cx, cy + 26, 'New target located...', {
-      fontFamily: '"Courier New", monospace',
-      fontSize: '20px', color: '#8866cc', letterSpacing: 3
+    const subLine = this.add.text(cx, cy + 48, this._subtitle, {
+      fontFamily: '"Poppins", Arial, sans-serif',
+      fontSize: '24px', color: '#d7ccff', letterSpacing: 0,
+      shadow: { offsetX: 0, offsetY: 0, color: '#8800ff', blur: 18, fill: true }
     }).setOrigin(0.5).setDepth(7).setAlpha(0);
 
     const lootLine = this._lootCount > 0
@@ -222,9 +230,11 @@ export default class TransitionScene extends Phaser.Scene {
       slGfx.lineBetween(0, y, W, y);
     }
 
-    // Text fade in
-    this.tweens.add({ targets: nightText, alpha: 1, duration: 500, delay: 300 });
-    this.tweens.add({ targets: subLine,   alpha: 1, duration: 500, delay: 700 });
+    // Text fade sequence
+    this.tweens.add({ targets: escapingText, alpha: 1, duration: 360, delay: 180 });
+    this.tweens.add({ targets: escapingText, alpha: 0, duration: 420, delay: 1180 });
+    this.tweens.add({ targets: nightText, alpha: 1, duration: 500, delay: 1180 });
+    this.tweens.add({ targets: subLine,   alpha: 1, duration: 520, delay: 1680 });
     if (lootLine) this.tweens.add({ targets: lootLine, alpha: 1, duration: 400, delay: 1000 });
 
     // ── UPDATE LOOP ───────────────────────────────────────────

@@ -34,6 +34,7 @@ export default class RankSystem {
     const rankEl = document.getElementById('end-rank');
     rankEl.textContent = rank.title;
     rankEl.style.color = rank.color;
+    document.getElementById('end-subtitle').textContent = 'You survived the heist.';
     document.getElementById('end-stats').innerHTML = `
       <div>⏱ Time Left: ${mm}:${ss}</div>
       <div>🔊 Noise: ${noiseLabel}</div>
@@ -41,30 +42,38 @@ export default class RankSystem {
       <div>${s.timerSystem.panicTriggered ? '🚨 Timed Out' : '🎯 Escaped in Time'}</div>
     `;
     el.classList.remove('hidden');
-    document.getElementById('end-replay-btn').onclick = () => {
-      el.classList.add('hidden');
-      s.scene.restart();
-    };
+    this._wireButtons(el);
   }
 
   showBustedScreen() {
     const s = this.scene;
-    const noise = s.noiseSystem.totalAccumulated;
-    const noiseLabel = noise < 0.5 ? 'Medium 😬' : 'Extremely HIGH 🔊';
     const el = document.getElementById('end-screen');
-    document.getElementById('end-eyebrow').textContent = '— BUSTED —';
+    document.getElementById('end-eyebrow').textContent = '— NIGHT FAILED —';
     const rankEl = document.getElementById('end-rank');
-    rankEl.textContent = 'CAUGHT RED-HANDED 😤';
-    rankEl.style.color = '#ff6a5f';
+    rankEl.textContent = 'CAUGHT';
+    rankEl.style.color = '#ff4c60';
+    document.getElementById('end-subtitle').textContent = 'The owner woke up...';
     document.getElementById('end-stats').innerHTML = `
-      <div>🔊 Noise Generated: ${noiseLabel}</div>
-      <div>💀 The owner got ya.</div>
-      <div>Better luck next time...</div>
+      <div>Stay quiet. Move with intention.</div>
+      <div>Hide before the search turns into a chase.</div>
     `;
     el.classList.remove('hidden');
-    document.getElementById('end-replay-btn').onclick = () => {
+    this._wireButtons(el);
+  }
+
+  _wireButtons(el) {
+    const s = this.scene;
+    const retry = document.getElementById('end-replay-btn');
+    const menu = document.getElementById('end-menu-btn');
+    if (retry) retry.onclick = () => {
       el.classList.add('hidden');
       s.scene.restart();
+    };
+    if (menu) menu.onclick = () => {
+      el.classList.add('hidden');
+      document.body.classList.remove('hud-visible');
+      document.body.classList.add('hud-hidden');
+      s.scene.start('MainMenuScene');
     };
   }
 }

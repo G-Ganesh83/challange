@@ -153,10 +153,10 @@ export default class FurnitureSystem {
     this._lastBumpAt = now;
 
     // Small noise — less than wall bumps
-    s.noiseSystem.add(0.04);
-    s.playSfx('fahh', { minGap: 300, volume: 0.45 });
+    s.noiseSystem.add(0.04, 'bump');
+    s.playSfx('fahh', { minGap: 300, volume: 0.32 });
     s.screenShake(5);
-    s.updatePrompt('Watch where you\'re going...');
+    s.updatePrompt('Careful. That made noise.', 'warning');
 
     // Pushback — nudge player away from block center
     const dx = player.x - block.x;

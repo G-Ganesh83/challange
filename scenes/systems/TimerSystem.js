@@ -69,8 +69,7 @@ export default class TimerSystem {
     s.screenShake(40);
     s.ownerWakeBurst('!');
     s.playSfx('coreTransition', { minGap: 100 });
-    s.playSfx('fahh', { minGap: 800, delay: 280 });
-    s.updatePrompt("TIME'S UP! FULL PANIC — collect loot and RUN!");
+    s.updatePrompt("TIME'S UP! Run or hide!", 'danger');
     const txt = s.add.text(480, 200, "TIME'S UP!", {
       fontFamily: '"Press Start 2P"', fontSize: '28px',
       color: '#ff6a5f', stroke: '#2a0808', strokeThickness: 6

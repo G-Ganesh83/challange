@@ -149,6 +149,10 @@ body.hud-visible #footer-hud {
   display: block;
 }
 
+body.hud-visible .noise-wrap {
+  display: none;
+}
+
 .title-card, .panel, #prompt, .noise-wrap {
   background: var(--panel);
   border: 2px solid var(--panel-border);
@@ -206,6 +210,68 @@ h1 {
   align-items: center;
   text-shadow: 0 0 8px rgba(255, 222, 166, 0.24);
   transition: transform 160ms ease, opacity 160ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.message-toast {
+  position: fixed;
+  top: 28px;
+  left: 50%;
+  z-index: 9000;
+  min-width: 280px;
+  max-width: min(620px, calc(100vw - 32px));
+  padding: 14px 22px;
+  border-radius: 14px;
+  background: rgba(5, 8, 16, 0.84);
+  border: 1px solid rgba(0, 238, 255, 0.72);
+  color: #f5fbff;
+  font-family: "Poppins", Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0;
+  line-height: 1.35;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -18px) scale(0.98);
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.45),
+    0 0 24px rgba(0, 238, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  transition:
+    opacity 220ms ease,
+    transform 260ms cubic-bezier(.2,.9,.2,1),
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.message-toast:not(.hidden) {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.message-toast.hidden {
+  opacity: 0;
+}
+
+.message-info {
+  border-color: rgba(0, 238, 255, 0.75);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.45), 0 0 24px rgba(0,238,255,0.24);
+}
+
+.message-warning {
+  border-color: rgba(255, 164, 64, 0.82);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.45), 0 0 26px rgba(255,164,64,0.24);
+}
+
+.message-success {
+  border-color: rgba(75, 255, 160, 0.8);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.45), 0 0 26px rgba(75,255,160,0.24);
+}
+
+.message-danger {
+  border-color: rgba(255, 76, 96, 0.86);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.5), 0 0 30px rgba(255,76,96,0.32);
 }
 
 .noise-wrap {
@@ -468,16 +534,16 @@ h1 {
   to   { opacity: 1; transform: scale(1); }
 }
 .end-card {
-  background: var(--panel);
-  border: 2px solid var(--panel-border);
-  border-radius: 18px;
+  background: rgba(10, 8, 16, 0.92);
+  border: 2px solid rgba(255, 76, 96, 0.34);
+  border-radius: 14px;
   padding: 36px 44px;
   text-align: center;
   display: grid;
   gap: 20px;
   min-width: 320px;
   max-width: 420px;
-  box-shadow: 0 32px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.65), 0 0 36px rgba(255,76,96,0.14), inset 0 1px 0 rgba(255,255,255,0.08);
   position: relative;
   overflow: hidden;
 }
@@ -494,10 +560,17 @@ h1 {
   letter-spacing: 2px;
 }
 .end-rank {
-  font-size: 17px;
+  font-size: 32px;
   line-height: 1.4;
   color: #ffd86e;
   text-shadow: 0 0 22px rgba(255, 216, 110, 0.45);
+}
+.end-subtitle {
+  color: #d8c9d8;
+  font-family: "Poppins", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 .end-stats {
   display: grid;
@@ -512,11 +585,19 @@ h1 {
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 8px;
 }
-.end-replay-btn {
+.end-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.end-replay-btn,
+.end-menu-btn {
   background: linear-gradient(180deg, #ffd86e, #e0ae30);
   color: #1a1206;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 13px 24px;
   font-family: "Press Start 2P", monospace;
   font-size: 11px;
@@ -525,11 +606,18 @@ h1 {
   box-shadow: 0 4px 0 rgba(0,0,0,0.3);
   transition: transform 100ms ease, box-shadow 100ms ease;
 }
-.end-replay-btn:hover {
+.end-menu-btn {
+  background: rgba(255,255,255,0.04);
+  color: #f5efe5;
+  border: 1px solid rgba(255,255,255,0.16);
+}
+.end-replay-btn:hover,
+.end-menu-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 0 rgba(0,0,0,0.3);
 }
-.end-replay-btn:active {
+.end-replay-btn:active,
+.end-menu-btn:active {
   transform: translateY(2px);
   box-shadow: 0 2px 0 rgba(0,0,0,0.3);
 }

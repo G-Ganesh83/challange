@@ -29,6 +29,9 @@ export default class GameScene extends Phaser.Scene {
     this.safeZoneEnterAt = null;
     this.wasInSafeZone = false;
     this.safeZoneCalmMs = 5000;
+    this.catchContactMs = 0;
+    this.lastRunNoiseAt = 0;
+    this.toastTimer = null;
   }
 
   /* ───────────────────────── PRELOAD ───────────────────────── */
@@ -66,6 +69,10 @@ export default class GameScene extends Phaser.Scene {
     // Show game HUD — hidden during menus
     document.body.classList.remove('hud-hidden');
     document.body.classList.add('hud-visible');
+    document.getElementById('end-screen')?.classList.add('hidden');
+    document.getElementById('message-toast')?.classList.add('hidden');
+    this.input.enabled = true;
+    this.physics.world.resume();
 
     // Reset flags
     this.chaseMode = false;
@@ -85,6 +92,8 @@ export default class GameScene extends Phaser.Scene {
     this.safeZoneEnterAt = null;
     this.wasInSafeZone = false;
     this.debugWallsEnabled = new URLSearchParams(window.location.search).has('debugWalls');
+    this.catchContactMs = 0;
+    this.lastRunNoiseAt = 0;
 
     // Systems
     this.noiseSystem      = new NoiseSystem(this);
@@ -331,6 +340,7 @@ export default class GameScene extends Phaser.Scene {
       fahh:           this.sound.add('fahh',            { volume: 0.92 }),
       enter:          this.sound.add('enter',           { volume: 0.6  }),
       pickup:         this.sound.add('pickup',          { volume: 0.55 }),
+      door_unlock:    this.sound.add('door_unlock',     { volume: 0.65 }),
       coreTransition: this.sound.add('coreTransition',  { volume: 0.75 }),
       out:            this.sound.add('out',             { volume: 0.6  }),
       safe:           this.sound.add('safe',            { volume: 0.5  }),
@@ -373,6 +383,7 @@ export default class GameScene extends Phaser.Scene {
     this.updatePlayerSafeZoneVisual(delta);
     this.timerSystem.update(delta);
     this.updateExitGlow(time);
+    this.updateCatchContact(delta);
   }
 
   /* ─────────────────────── PLAYER LOGIC ────────────────────── */
@@ -391,10 +402,29 @@ export default class GameScene extends Phaser.Scene {
     this.player.body.velocity.y = Phaser.Math.Linear(this.player.body.velocity.y, target.y, 0.28);
 
     if (moving && this.cursors.SHIFT.isDown) {
-      this.noiseSystem.add(0.12 * Math.max(0, delta ?? 16) / 1000);
+      this.noiseSystem.add(0.12 * Math.max(0, delta ?? 16) / 1000, 'run');
+      if (this.time.now - (this.lastRunNoiseAt ?? 0) > 720) {
+        this.lastRunNoiseAt = this.time.now;
+        this.handleSoundEvent(0.11, 'run');
+      }
     }
     this.player.setDrag(1000,1000);
     this.updatePlayerAnimation({ moving, left, right, up, down });
+  }
+
+  handleSoundEvent(intensity, source = 'noise') {
+    if (!this.ownerAI || this.gameOver || this.roomCompleted) return;
+    if (this.isPlayerInSafeZone()) this.safeZoneEnterAt = this.time.now;
+    const mappedIntensity = this.mapSoundIntensity(intensity, source);
+    this.ownerAI.reactToSound(mappedIntensity, source);
+  }
+
+  mapSoundIntensity(intensity, source) {
+    if (source === 'loot') return intensity >= 0.20 ? 0.32 : 0.16;
+    if (source === 'run') return Math.max(intensity, 0.15);
+    if (source === 'bump') return Math.max(intensity, 0.13);
+    if (source === 'cable') return Math.max(intensity, 0.14);
+    return intensity;
   }
 
   handleInteract(time) {
@@ -477,8 +507,8 @@ export default class GameScene extends Phaser.Scene {
       if (!this.wallBumpArmed) return;
       this.wallBumpArmed=false;
     }
-    this.noiseSystem.add(0.08);
-    this.playSfx('fahh',{minGap:180,delay:10});
+    this.noiseSystem.add(0.08, 'bump');
+    this.playSfx('fahh',{minGap:180,delay:10,volume:0.34});
     this.bumpPlayerBackFromSideWall(solid);
 
     if (this.chaseMode) { this.screenShake(16); return; }
@@ -488,10 +518,10 @@ export default class GameScene extends Phaser.Scene {
       this.owner.setTexture('owner_alert').setScale(this.ownerAlertScale).setVisible(true);
       this.playSfx('coreTransition',{minGap:1200,delay:90});
       this.flashRed(); this.screenShake(80); this.ownerWakeBurst();
-      this.updatePrompt('Wall bump! The owner heard that.');
+      this.updatePrompt('Wall bump. The owner heard that.', 'warning');
     } else {
       this.screenShake(10);
-      this.updatePrompt('Careful... wall bumps are loud.');
+      this.updatePrompt('Careful. Walls carry sound.', 'warning');
     }
   }
 
@@ -503,12 +533,17 @@ export default class GameScene extends Phaser.Scene {
   updateSafeZoneTransition(time) {
     const inSafe = this.isPlayerInSafeZone();
     if (inSafe) {
+      if (this.safeZoneEnterAt == null) this.safeZoneEnterAt = time;
       if (this.safeZoneSoundArmed) {
         this.safeZoneSoundArmed=false; this.safeZoneEnterAt=time;
         this.playSfx('safe',{minGap:700});
-        this.updatePrompt('Safe zone: closet. Stay hidden for a moment.');
+        this.updatePrompt('Safe zone entered', 'info');
+        this.showHideTension(true);
       }
-    } else { this.safeZoneEnterAt=null; this.safeZoneSoundArmed=true; }
+    } else {
+      this.safeZoneEnterAt=null; this.safeZoneSoundArmed=true;
+      this.showHideTension(false);
+    }
 
     if (this.player && !this.hidden) {
       if (inSafe && !this.playerDimmed) {
@@ -526,6 +561,7 @@ export default class GameScene extends Phaser.Scene {
 
   updateOwnerState(time) {
     if (!this.chaseMode) {
+      if (this.owner.state === 'alert' || this.owner.state === 'searching') return;
       this.setOwnerBreathing(true);
       this.owner.setTexture('owner_sleep').setScale(0.25).setVisible(true);
       return;
@@ -553,7 +589,8 @@ export default class GameScene extends Phaser.Scene {
       this.player.body.enable=false;
       this.player.setVelocity(0,0);
       this.playSfx('enter',{minGap:900,delay:40});
-      this.updatePrompt('Hidden in closet. Pretend you were never here.');
+      this.updatePrompt('Hidden. Stay quiet.', 'info');
+      this.showHideTension(true);
     }
   }
 
@@ -565,14 +602,14 @@ export default class GameScene extends Phaser.Scene {
     if (!this.lootSystem.allCollected()) {
       if (this.exitPromptMode!=='blocked') {
         this.exitPromptVisible=true; this.exitPromptMode='blocked';
-        this.updatePrompt(`Still missing loot! (${this.lootSystem.collectedCount}/${this.lootSystem.total}) — Loot first, escape later!`);
+        this.updatePrompt(`Need all loot before escaping (${this.lootSystem.collectedCount}/${this.lootSystem.total})`, 'warning');
         this.onExitDenied();
       }
       return;
     }
     if (this.exitPromptMode!=='ready') {
       this.exitPromptVisible=true; this.exitPromptMode='ready';
-      this.updatePrompt('All loot secured! Press E to escape.');
+      this.updatePrompt('All loot secured. Press E to escape.', 'success');
     }
     if (!Phaser.Input.Keyboard.JustDown(this.cursors.E)) return;
     this.completeRoom();
@@ -583,35 +620,72 @@ export default class GameScene extends Phaser.Scene {
     this.roomCompleted=true; this.gameOver=true;
     this.timerSystem.stop();
     this.player.setVelocity(0,0); this.owner.setVelocity(0,0);
-    this.playSfx('success',{minGap:2000,delay:70});
-    this.cameras.main.fade(800,14,9,9);
-    this.updatePrompt('ESCAPED!');
-    this.time.delayedCall(900, () => this.scene.start('TransitionScene', {
+    this.input.enabled = false;
+    this.playSfx('door_unlock',{minGap:1200,volume:0.65});
+    this.playSfx('footstep',{minGap:300,delay:260,volume:0.18});
+    this.playSfx('success',{minGap:2000,delay:620});
+    this.updatePrompt('Escaping...', 'success');
+    if (this.exitGlowObj) {
+      this.exitGlowObj.setAlpha(0.45);
+      this.tweens.add({ targets:this.exitGlowObj, scale:1.28, alpha:0.8, duration:520, yoyo:true, ease:'Sine.inOut' });
+    }
+    this.cameras.main.fade(1250,6,4,10);
+    this.time.delayedCall(1350, () => this.scene.start('TransitionScene', {
       nextScene: 'Room2Scene',
       night: 2,
-      lootCount: this.lootSystem.collectedCount || 0
+      lootCount: this.lootSystem.collectedCount || 0,
+      subtitle: 'Gaming Apartment'
     }));
   }
 
   onCaught() {
     if (this.gameOver) return;
     if (this.hidden) return;
-    if (this.isPlayerInSafeZone()) return;   // safe zone protects player
+    if (!this.isOwnerCatchActive()) return;
     this.gameOver = true;
     this.timerSystem.stop();
+    this.input.enabled = false;
     this.player.setVelocity(0, 0);
     this.owner.setVelocity(0, 0);
     this.player.body.enable = false;
-    this.updatePrompt('BUSTED! The owner caught you.');
-    this.screenShake(180);
-    this.flashRed();
-    this.cameras.main.flash(300, 180, 0, 0);
-    if (!AM.sfxMuted) this.sound.play('fahh', { volume: 1.0, rate: 0.8, detune: -300 });
-    this.add.text(480, 312, 'BUSTED!', {
-      fontFamily: '"Press Start 2P"', fontSize: '30px',
-      color: '#fffbf2', stroke: '#a51f1f', strokeThickness: 6
-    }).setOrigin(0.5).setDepth(200);
-    this.time.delayedCall(1600, () => this.rankSystem.showBustedScreen());
+    this.updatePrompt('CAUGHT', 'danger');
+    this.playSfx('fahh', { volume: 1.0, rate: 0.78, detune: -320 });
+    this.playSfx('coreTransition', { volume: 0.65, delay: 80 });
+    this.physics.world.pause();
+    this.time.delayedCall(150, () => {
+      this.screenShake(170);
+      this.flashRed();
+      this.cameras.main.flash(260, 210, 0, 20);
+    });
+    this.time.delayedCall(760, () => this.rankSystem.showBustedScreen());
+  }
+
+  updateCatchContact(delta) {
+    if (this.gameOver || this.hidden || !this.isOwnerCatchActive() || !this.player?.body || !this.owner?.body) {
+      this.catchContactMs = 0;
+      return;
+    }
+    const touching = this.isOwnerTouchingPlayer();
+    this.catchContactMs = touching ? this.catchContactMs + (delta ?? 16) : 0;
+    if (this.catchContactMs >= 120) this.onCaught();
+  }
+
+  isOwnerCatchActive() {
+    return this.chaseMode || this.owner?.state === 'alert' || this.owner?.state === 'searching' || this.owner?.state === 'chase';
+  }
+
+  isOwnerTouchingPlayer() {
+    if (this.physics.overlap(this.player, this.owner)) return true;
+    const pb = this.player.body;
+    const ob = this.owner.body;
+    if (!pb || !ob) return false;
+    const bodyTouch = Phaser.Math.Distance.Between(pb.center.x, pb.center.y, ob.center.x, ob.center.y) <= 56;
+    if (bodyTouch) return true;
+
+    // The alert/chase artwork is larger than its Arcade body. During an actual
+    // chase, use sprite centers as a final close-contact fallback so visible
+    // body contact cannot miss.
+    return this.chaseMode && Phaser.Math.Distance.Between(this.player.x, this.player.y, this.owner.x, this.owner.y) <= 108;
   }
 
   onExitDenied() {
@@ -733,12 +807,38 @@ export default class GameScene extends Phaser.Scene {
     el.style.borderColor=alert ? '#d65a4e' : '#5a3a2c';
   }
 
-  updatePrompt(text) {
+  updatePrompt(text, type = 'info') {
     const el=this.promptEl; if(!el) return;
     el.style.opacity='0.72'; el.style.transform='translateY(2px) scale(0.99)';
     window.clearTimeout(this.promptResetTimer);
     el.textContent=text;
     this.promptResetTimer=window.setTimeout(()=>{ el.style.opacity='1'; el.style.transform='translateY(0) scale(1)'; },20);
+    this.showNotification(text, type);
+  }
+
+  showNotification(text, type = 'info') {
+    const toast = document.getElementById('message-toast');
+    const body = document.getElementById('message-toast-text');
+    if (!toast || !body) return;
+    body.textContent = text;
+    toast.classList.remove('hidden','message-info','message-warning','message-success','message-danger');
+    toast.classList.add(`message-${type}`);
+    window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => toast.classList.add('hidden'), type === 'danger' ? 2200 : 1700);
+  }
+
+  showHideTension(active) {
+    if (!this.hideTensionOverlay) {
+      this.hideTensionOverlay = this.add.rectangle(0,0,960,640,0x000000,0)
+        .setOrigin(0).setDepth(98).setBlendMode(Phaser.BlendModes.MULTIPLY);
+    }
+    this.tweens.killTweensOf(this.hideTensionOverlay);
+    this.tweens.add({
+      targets: this.hideTensionOverlay,
+      alpha: active ? 0.16 : 0,
+      duration: 260,
+      ease: 'Sine.out'
+    });
   }
 
   setOwnerBreathing(active) {
