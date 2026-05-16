@@ -8,24 +8,11 @@ export default class IntroScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor('#000000');
 
-    // ── Triple-layer bloom (stacked glow for depth) ──────────
-    // Layer 1: wide outer halo
-    const halo = this.add.text(cx, cy, 'GANESH GAMES', {
-      fontFamily: '"Courier New", monospace',
-      fontSize: '52px',
-      color: '#00ffff',
-      shadow: { offsetX: 0, offsetY: 0, color: '#00ffff', blur: 80, fill: true }
-    }).setOrigin(0.5).setAlpha(0).setDepth(1);
+    // ── Single neon text layer ───────────────────────────────
+    const halo    = { setAlpha: () => {}, setX: () => {}, alpha: 0 };
+    const midGlow = { setAlpha: () => {}, setX: () => {}, alpha: 0 };
 
-    // Layer 2: mid glow
-    const midGlow = this.add.text(cx, cy, 'GANESH GAMES', {
-      fontFamily: '"Courier New", monospace',
-      fontSize: '52px',
-      color: '#00ffff',
-      shadow: { offsetX: 0, offsetY: 0, color: '#00eeff', blur: 36, fill: true }
-    }).setOrigin(0.5).setAlpha(0).setDepth(2);
-
-    // Layer 3: crisp top text
+    // Main text
     const mainText = this.add.text(cx, cy, 'GANESH GAMES', {
       fontFamily: '"Courier New", monospace',
       fontSize: '48px',
@@ -79,21 +66,7 @@ export default class IntroScene extends Phaser.Scene {
       fontSize: '48px', color: '#0044ff',
     }).setOrigin(0.5).setAlpha(0).setDepth(2).setBlendMode(Phaser.BlendModes.ADD);
 
-    // ── Power-on line sweep (horizontal bright line) ─────────
-    const powerLine = this.add.graphics().setDepth(8);
-    let lineY = 0;
-    let lineSweepDone = false;
-    const drawPowerLine = (y, alpha) => {
-      powerLine.clear();
-      if (alpha <= 0) return;
-      powerLine.lineStyle(2, 0x00ffff, alpha);
-      powerLine.lineBetween(0, y, W, y);
-      // Wider glow band
-      powerLine.lineStyle(8, 0x00ffff, alpha * 0.12);
-      powerLine.lineBetween(0, y, W, y);
-      powerLine.lineStyle(20, 0x00ffff, alpha * 0.04);
-      powerLine.lineBetween(0, y, W, y);
-    };
+
 
     // ── Flicker logic ────────────────────────────────────────
     const flicker = () => {
@@ -118,34 +91,16 @@ export default class IntroScene extends Phaser.Scene {
 
     // ── SEQUENCE ─────────────────────────────────────────────
 
-    // Step 1: Power-on sweep (0ms) — line races from top to center
-    this.time.addEvent({
-      delay: 8,
-      repeat: 80,
-      callback: () => {
-        lineY += H / 80;
-        const progress = lineY / H;
-        drawPowerLine(lineY, 1 - progress * 0.3);
-        if (lineY >= H * 0.5 && !lineSweepDone) {
-          lineSweepDone = true;
-          // Line hits center → text flash in
-          this.tweens.add({ targets: mainText,  alpha: { from: 0, to: 1 },   duration: 60, delay: 0 });
-          this.tweens.add({ targets: midGlow,   alpha: { from: 0, to: 0.7 }, duration: 60, delay: 0 });
-          this.tweens.add({ targets: halo,      alpha: { from: 0, to: 0.35 },duration: 80, delay: 0 });
-          this.tweens.add({ targets: subText,   alpha: { from: 0, to: 0.8 }, duration: 200, delay: 180 });
-          // Buzz on flash
-          try { this.sound.play('neon_buzz', { volume: 0.55 }); } catch(e) {}
-        }
-      }
+    // Step 1: Instant flash-in (original behaviour)
+    this.tweens.add({ targets: mainText, alpha: { from: 0, to: 1 },  duration: 60, delay: 200 });
+    this.tweens.add({ targets: subText,  alpha: { from: 0, to: 0.8 }, duration: 200, delay: 380 });
+    // Buzz on flash
+    this.time.delayedCall(200, () => {
+      try { this.sound.play('neon_buzz', { volume: 0.55 }); } catch(e) {}
     });
 
-    // After sweep done, fade power line
-    this.time.delayedCall(700, () => {
-      this.tweens.add({ targets: powerLine, alpha: 0, duration: 300 });
-    });
-
-    // Step 2: Flicker loop (starts after flash-in)
-    this.time.delayedCall(750, () => {
+    // Step 2: Flicker loop
+    this.time.delayedCall(350, () => {
       this._flickerTimer = this.time.addEvent({
         delay: 80, repeat: 18, callback: flicker
       });
@@ -165,7 +120,7 @@ export default class IntroScene extends Phaser.Scene {
 
       // CRT power-off: text scrunches vertically to a thin line then gone
       this.tweens.add({
-        targets: [mainText, midGlow, halo, subText],
+        targets: [mainText, subText],
         scaleY: { from: 1, to: 0 },
         alpha: { from: undefined, to: 0 },
         duration: 220,
