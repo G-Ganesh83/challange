@@ -705,7 +705,7 @@ export default class Room2Scene extends Phaser.Scene {
 
   mapSoundIntensity(intensity, source) {
     if (source === 'loot') return intensity >= 0.12 ? 0.32 : 0.17;
-    if (source === 'run') return Math.max(intensity, 0.16);
+    if (source === 'run') return intensity >= 0.10 ? 0.16 : intensity;
     if (source === 'bump') return Math.max(intensity, 0.14);
     if (source === 'cable') return Math.max(intensity, 0.16);
     return intensity;

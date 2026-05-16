@@ -2,7 +2,7 @@
 
 Tiny Thief is a browser-based 2D stealth game built with Phaser 3 and Vite.
 The current version is a polished two-room prototype with a cinematic intro,
-main menu, mission briefing, room transition, suspicion system, loot-gated
+main menu, mission briefing, room transition, sound-based stealth, loot-gated
 escape, timer pressure, chase states, audio controls, and end screens.
 
 ## Tech Stack
@@ -65,8 +65,9 @@ BootScene
 ## Gameplay
 
 The player must collect every loot item in the current room and escape through
-the exit without getting caught. Noise raises suspicion. If suspicion gets too
-high, the owner wakes, enters alert/chase behavior, and can catch the player.
+the exit without getting caught. Noise events are direct and dangerous: wall
+bumps, furniture bumps, loud running, and noisy interactions can wake the owner
+or trigger a chase.
 
 Room 1 has 4 loot items:
 
@@ -88,14 +89,14 @@ Each room has a safe zone:
 - Room 1: closet
 - Room 2: wardrobe
 
-During chase, entering the safe zone or hiding correctly can calm the owner
-back down after a short delay.
+If the owner wakes up, enter the safe zone or wardrobe quickly and stay there
+for about 5 seconds to calm the owner down.
 
 ## Core Systems
 
 The project has reusable systems under `scenes/systems/`:
 
-- `NoiseSystem.js` controls suspicion, decay, and HUD updates.
+- `NoiseSystem.js` tracks internal noise events and forwards sound reactions.
 - `OwnerAI.js` controls sleep, stir, alert, patrol, chase, and reset behavior.
 - `LootSystem.js` controls Room 1 loot creation, pickup, VFX, and HUD syncing.
 - `TimerSystem.js` controls countdown, urgent state, and full panic mode.

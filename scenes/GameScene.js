@@ -455,7 +455,7 @@ export default class GameScene extends Phaser.Scene {
 
   mapSoundIntensity(intensity, source) {
     if (source === 'loot') return intensity >= 0.20 ? 0.32 : 0.16;
-    if (source === 'run') return Math.max(intensity, 0.15);
+    if (source === 'run') return intensity >= 0.10 ? 0.15 : intensity;
     if (source === 'bump') return Math.max(intensity, 0.13);
     if (source === 'cable') return Math.max(intensity, 0.14);
     return intensity;

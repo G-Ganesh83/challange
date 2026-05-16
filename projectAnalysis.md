@@ -34,8 +34,8 @@ isProject: true
 | Verification | `npm run build` passes |
 
 Tiny Thief is a top-down stealth prototype. The player collects all loot in a
-room, manages suspicion/noise, hides when the owner wakes up, and escapes before
-the timer creates a full-panic chase.
+room, avoids sound-based owner reactions, hides when the owner wakes up, and
+escapes before the timer creates a full-panic chase.
 
 ## Scene Flow
 
@@ -98,9 +98,10 @@ means scene code depends on specific DOM IDs.
 - Movement feel: velocity interpolation and high drag for smooth stopping.
 - Sprite readability: active outline/shadow follows the player.
 
-### Noise And Suspicion
+### Sound-Based Stealth
 
-`NoiseSystem` owns the suspicion value from 0 to 1.
+`NoiseSystem` tracks internal noise events and forwards direct sound reactions
+to `OwnerAI`. The visible suspicion meter is no longer part of the gameplay.
 
 Main noise sources:
 
@@ -110,15 +111,15 @@ Main noise sources:
 - Loot pickup.
 - Room 2 cable-zone movement.
 
-Suspicion decays over time. Decay is slower at high suspicion and much slower
-while the owner is actively chasing.
+Small sounds can stir the owner, medium sounds wake the owner into search, and
+loud actions can trigger a chase immediately.
 
 ### Owner AI
 
 `OwnerAI` implements the shared owner behavior:
 
 - Sleeping or idle.
-- Stir response at medium suspicion.
+- Stir/search/chase response from sound events.
 - Alert phase before full chase.
 - Chase behavior toward the player.
 - Safe-zone behavior when the player hides.
@@ -178,7 +179,7 @@ Key features:
 - Owner sleeping near the bed.
 - Exit at the top center.
 - Furniture collision footprints.
-- Prompt, suspicion, loot, and timer HUD integration.
+- Prompt, loot, and timer HUD integration.
 - Transition to Room 2 after escape.
 
 Room 1 uses the shared `LootSystem`, `NoiseSystem`, `OwnerAI`, `TimerSystem`,
@@ -305,4 +306,3 @@ Production build:
 ```bash
 npm run build
 ```
-

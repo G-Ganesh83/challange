@@ -33,7 +33,7 @@ export default class MissionScene extends Phaser.Scene {
     const rainGfx   = this.add.graphics().setDepth(2).setAlpha(0.22);
 
     // ── Glassmorphism card ────────────────────────────────────
-    const cardW = 700, cardH = 510;
+    const cardW = 720, cardH = 520;
     const cardX = cx - cardW / 2, cardY = cy - cardH / 2 - 4;
 
     // Outer glow border (pulsing)
@@ -54,11 +54,11 @@ export default class MissionScene extends Phaser.Scene {
     accentTop.strokeRoundedRect(cardX + 1, cardY + 1, cardW - 2, cardH - 2, 15);
 
     // ── HOW TO PLAY title ─────────────────────────────────────
-    this.add.text(cx, cardY + 38, 'HOW TO PLAY', {
-      fontFamily: '"Poppins", "Rajdhani", Arial, sans-serif',
+    this._text(cx, cardY + 38, 'HOW TO PLAY', {
+      fontFamily: '"Poppins", Arial, sans-serif',
       fontSize: '30px', fontStyle: 'bold',
-      color: '#cc88ff',
-      shadow: { offsetX: 0, offsetY: 0, color: '#8800ff', blur: 22, fill: true }
+      color: '#dfc8ff',
+      shadow: { offsetX: 0, offsetY: 0, color: '#7b35d8', blur: 16, fill: true }
     }).setOrigin(0.5).setDepth(6);
 
     // Divider
@@ -69,8 +69,8 @@ export default class MissionScene extends Phaser.Scene {
     divGfx.fillRect(cx - 3, cardY + 59, 6, 6); // center diamond
 
     // ── Two column layout ─────────────────────────────────────
-    const colL = cardX + 44;
-    const colR = cx + 20;
+    const colL = cardX + 46;
+    const colR = cx + 24;
     let yL = cardY + 82;
     let yR = cardY + 82;
 
@@ -78,72 +78,72 @@ export default class MissionScene extends Phaser.Scene {
 
     // OBJECTIVE
     yL = this._section(colL, yL, 'OBJECTIVE',
-      'Collect all 4 loot items\nand escape without getting caught.\nThe owner wakes up if you make too much noise.',
+      'Sneak into the apartment,\ncollect all 4 loot items,\navoid waking the owner,\nand escape safely.',
       0x00eeff, 6);
 
-    yL += 14;
+    yL += 12;
 
     // CONTROLS
     this._sectionLabel(colL, yL, 'CONTROLS', 0x00eeff, 6);
     yL += 22;
     yL = this._drawControls(colL, yL);
 
-    yL += 14;
+    yL += 12;
 
     // GAME RULES
     yL = this._section(colL, yL, 'GAME RULES', null, 0x00eeff, 6, [
-      'Making noise increases suspicion.',
-      'Running creates more noise.',
-      'If suspicion maxes, owner wakes up.',
-      'Hide in wardrobes / safe zones.',
-      'Escape after collecting all loot.',
+      'Bumping walls or furniture creates noise.',
+      'Running too long wakes the owner.',
+      'Loud actions attract attention immediately.',
+      'Hide in safe zones for 5 seconds if the owner wakes up.',
+      'Collect all loot and escape safely.',
     ]);
 
     // ── RIGHT COLUMN ──────────────────────────────────────────
 
     // WIN CONDITION
     yR = this._section(colR, yR, 'WIN CONDITION',
-      'Collect all loot and reach\nthe exit door safely.',
+      'Collect every loot item\nand reach the exit door\nwithout getting caught.',
       0xaa44ff, 6);
 
     yR += 14;
 
     // SOUND & AUDIO
     yR = this._section(colR, yR, 'SOUND & AUDIO',
-      'Rain and music create the atmosphere.\nUse the top-right audio buttons anytime.\n🎵 = ambient   🔊 = sound effects',
+      'Rain and lo-fi ambience create\nthe stealth atmosphere.\nSpeaker icon = Ambient audio\nWaveform icon = Sound effects',
       0xaa44ff, 6);
 
-    yR += 8;
-    this.add.text(colR, yR, '🎧 Best experienced with headphones', {
+    yR += 10;
+    this._text(colR, yR, 'Best experienced with headphones.', {
       fontFamily: '"Poppins", Arial, sans-serif',
-      fontSize: '11px', fontStyle: 'italic',
-      color: '#443366',
+      fontSize: '11px', fontStyle: '600',
+      color: '#6f5f96',
     }).setDepth(6);
 
     // ── CONTINUE BUTTON ───────────────────────────────────────
     const btnY = cardY + cardH - 42;
-    const btnW = 220, btnH = 38;
+    const btnW = 238, btnH = 40;
 
     const btnGfx = this.add.graphics().setDepth(7);
-    this._drawRoundRect(btnGfx, cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 10, 0x1a0840, 0.92, 0x8800ff, 0.85);
+    this._drawRoundRect(btnGfx, cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 10, 0x1b0c3d, 0.96, 0x9b5cff, 0.9);
 
-    const btnText = this.add.text(cx, btnY, 'PRESS SPACE TO START', {
+    const btnText = this._text(cx, btnY, 'PRESS SPACE TO START', {
       fontFamily: '"Poppins", Arial, sans-serif',
-      fontSize: '13px', fontStyle: 'bold',
-      color: '#ddbbff',
-      shadow: { offsetX: 0, offsetY: 0, color: '#8800ff', blur: 10, fill: true }
+      fontSize: '13px', fontStyle: '700',
+      color: '#f0e3ff',
+      shadow: { offsetX: 0, offsetY: 0, color: '#8d52ff', blur: 8, fill: true }
     }).setOrigin(0.5).setDepth(8);
 
-    this.add.text(cx, btnY + 26, 'Begin the heist', {
+    this._text(cx, btnY + 26, 'Begin the heist', {
       fontFamily: '"Poppins", Arial, sans-serif',
-      fontSize: '11px', fontStyle: 'italic',
-      color: '#554477',
+      fontSize: '11px', fontStyle: '600',
+      color: '#73619c',
     }).setOrigin(0.5).setDepth(8);
 
     // Pulse
     this.tweens.add({
-      targets: [btnGfx, btnText], alpha: { from: 1, to: 0.45 },
-      duration: 900, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
+      targets: [btnGfx, btnText], alpha: { from: 1, to: 0.72 },
+      duration: 1100, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
     });
 
     // ── Audio ─────────────────────────────────────────────────
@@ -203,9 +203,9 @@ export default class MissionScene extends Phaser.Scene {
 
   _sectionLabel(x, y, label, color, depth) {
     const hex = '#' + color.toString(16).padStart(6, '0');
-    this.add.text(x, y, label, {
+    this._text(x, y, label, {
       fontFamily: '"Poppins", Arial, sans-serif',
-      fontSize: '12px', fontStyle: 'bold',
+      fontSize: '12px', fontStyle: '700',
       color: hex,
       shadow: { offsetX: 0, offsetY: 0, color: hex, blur: 8, fill: true }
     }).setDepth(depth);
@@ -215,22 +215,22 @@ export default class MissionScene extends Phaser.Scene {
   _section(x, y, label, body, color, depth, bullets = null) {
     y = this._sectionLabel(x, y, label, color, depth);
     if (body) {
-      this.add.text(x, y, body, {
+      this._text(x, y, body, {
         fontFamily: '"Poppins", Arial, sans-serif',
-        fontSize: '11px', color: '#aaa8cc',
-        wordWrap: { width: 290 }, lineSpacing: 4,
+        fontSize: '11px', color: '#c8c0df',
+        wordWrap: { width: 300 }, lineSpacing: 5,
       }).setDepth(depth);
       const lines = body.split('\n').length;
       y += lines * 16 + 10;
     }
     if (bullets) {
       bullets.forEach(b => {
-        this.add.text(x, y, '· ' + b, {
+        this._text(x, y, '• ' + b, {
           fontFamily: '"Poppins", Arial, sans-serif',
-          fontSize: '11px', color: '#9988bb',
-          wordWrap: { width: 290 },
+          fontSize: '10.5px', color: '#b5a9cf',
+          wordWrap: { width: 310 },
         }).setDepth(depth);
-        y += 16;
+        y += 17;
       });
       y += 6;
     }
@@ -241,7 +241,7 @@ export default class MissionScene extends Phaser.Scene {
     const keys = [
       { keys: ['W'], label: null },
       { keys: ['A', 'S', 'D'], label: 'Move' },
-      { keys: ['SHIFT'], label: 'Run (more noise)' },
+      { keys: ['SHIFT'], label: 'Run (creates more noise)' },
       { keys: ['E'], label: 'Interact / Pickup / Hide' },
     ];
 
@@ -261,18 +261,18 @@ export default class MissionScene extends Phaser.Scene {
         gfx.fillRoundedRect(kx, ky, kw, keyH, 4);
         gfx.lineStyle(1.5, keyBorder, 0.85);
         gfx.strokeRoundedRect(kx, ky, kw, keyH, 4);
-        this.add.text(kx + kw / 2, ky + keyH / 2, k, {
+        this._text(kx + kw / 2, ky + keyH / 2, k, {
           fontFamily: '"Poppins", Arial, sans-serif',
-          fontSize: '10px', fontStyle: 'bold', color: '#ccbbee',
+          fontSize: '10px', fontStyle: '600', color: '#e3d8ff',
         }).setOrigin(0.5).setDepth(7);
         kx += kw + keyPad;
       });
       ky += keyH + keyPad;
     });
     // Move label
-    this.add.text(x + 72, y + 8, 'Move', {
+    this._text(x + 72, y + 8, 'Move', {
       fontFamily: '"Poppins", Arial, sans-serif',
-      fontSize: '11px', color: '#9988bb',
+      fontSize: '11px', fontStyle: '500', color: '#beb1db',
     }).setDepth(6);
 
     ky += 4;
@@ -283,13 +283,13 @@ export default class MissionScene extends Phaser.Scene {
     gfx.fillRoundedRect(x, ky, shiftKw, keyH, 4);
     gfx.lineStyle(1.5, keyBorder, 0.85);
     gfx.strokeRoundedRect(x, ky, shiftKw, keyH, 4);
-    this.add.text(x + shiftKw / 2, ky + keyH / 2, 'SHIFT', {
+    this._text(x + shiftKw / 2, ky + keyH / 2, 'SHIFT', {
       fontFamily: '"Poppins", Arial, sans-serif',
-      fontSize: '9px', fontStyle: 'bold', color: '#ccbbee',
+      fontSize: '9px', fontStyle: '600', color: '#e3d8ff',
     }).setOrigin(0.5).setDepth(7);
-    this.add.text(x + shiftKw + 8, ky + keyH / 2, 'Run (more noise)', {
+    this._text(x + shiftKw + 8, ky + keyH / 2, 'Run (creates more noise)', {
       fontFamily: '"Poppins", Arial, sans-serif',
-      fontSize: '11px', color: '#9988bb',
+      fontSize: '11px', fontStyle: '500', color: '#beb1db',
     }).setOrigin(0, 0.5).setDepth(6);
     ky += keyH + keyPad + 4;
 
@@ -299,13 +299,13 @@ export default class MissionScene extends Phaser.Scene {
     gfx.fillRoundedRect(x, ky, ekw, keyH, 4);
     gfx.lineStyle(1.5, keyBorder, 0.85);
     gfx.strokeRoundedRect(x, ky, ekw, keyH, 4);
-    this.add.text(x + ekw / 2, ky + keyH / 2, 'E', {
+    this._text(x + ekw / 2, ky + keyH / 2, 'E', {
       fontFamily: '"Poppins", Arial, sans-serif',
-      fontSize: '10px', fontStyle: 'bold', color: '#ccbbee',
+      fontSize: '10px', fontStyle: '600', color: '#e3d8ff',
     }).setOrigin(0.5).setDepth(7);
-    this.add.text(x + ekw + 8, ky + keyH / 2, 'Interact / Hide', {
+    this._text(x + ekw + 8, ky + keyH / 2, 'Interact / Pickup / Hide', {
       fontFamily: '"Poppins", Arial, sans-serif',
-      fontSize: '11px', color: '#9988bb',
+      fontSize: '11px', fontStyle: '500', color: '#beb1db',
     }).setOrigin(0, 0.5).setDepth(6);
     ky += keyH + 6;
 
