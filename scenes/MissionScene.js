@@ -1,6 +1,7 @@
-// MissionScene — stylish mission briefing card, SPACE to begin heist
+// MissionScene — cinematic HOW TO PLAY briefing screen
 import MuteButton from './systems/MuteButton.js';
 import AM         from './systems/AudioManager.js';
+
 export default class MissionScene extends Phaser.Scene {
   constructor() { super('MissionScene'); }
 
@@ -8,183 +9,307 @@ export default class MissionScene extends Phaser.Scene {
     const W = 960, H = 640;
     const cx = W / 2, cy = H / 2;
 
-    this.cameras.main.setBackgroundColor('#060410');
+    this.cameras.main.setBackgroundColor('#05040f');
 
-    // ── Dark BG with subtle city glow ────────────────────────
-    this.add.rectangle(cx, cy, W, H, 0x0a0618, 1).setDepth(0);
+    // ── Background ────────────────────────────────────────────
+    this.add.rectangle(cx, cy, W, H, 0x05040f, 1).setDepth(0);
 
-    // Radial glow center
-    const glowCircle = this.add.circle(cx, cy, 280, 0x6600cc, 0.07).setDepth(1);
+    // Subtle radial fog center
+    const fog = this.add.circle(cx, cy + 40, 360, 0x0a0030, 0.45).setDepth(1);
     this.tweens.add({
-      targets: glowCircle, scaleX: 1.12, scaleY: 1.12,
-      duration: 2400, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
+      targets: fog, scaleX: 1.08, scaleY: 1.06,
+      duration: 3800, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
     });
 
-    // Floating particles
-    const pts = Array.from({ length: 30 }, () => ({
-      x: Math.random() * W, y: Math.random() * H,
-      vx: (Math.random() - 0.5) * 0.4, vy: -0.3 - Math.random() * 0.5,
-      r: 1 + Math.random() * 2,
-      alpha: 0.3 + Math.random() * 0.5
-    }));
-    const ptGfx = this.add.graphics().setDepth(2);
+    // ── Rain ──────────────────────────────────────────────────
+    const rainDrops = Array.from({ length: 55 }, () => this._makeRainDrop(W, H, true));
+    const rainGfx   = this.add.graphics().setDepth(2).setAlpha(0.22);
 
-    // Scanlines
-    const sl = this.add.graphics().setDepth(20).setAlpha(0.07);
-    for (let y = 0; y < H; y += 4) {
-      sl.lineStyle(1, 0x000000, 1);
-      sl.lineBetween(0, y, W, y);
-    }
+    // ── Glassmorphism card ────────────────────────────────────
+    const cardW = 700, cardH = 510;
+    const cardX = cx - cardW / 2, cardY = cy - cardH / 2 - 4;
 
-    // ── Mission card ─────────────────────────────────────────
-    const cardW = 500, cardH = 360;
-    const cardX = cx - cardW / 2, cardY = cy - cardH / 2;
-
-    // Card border glow
-    const cardGlow = this.add.rectangle(cx, cy, cardW + 10, cardH + 10, 0x8800ff, 0.22).setDepth(3);
+    // Outer glow border (pulsing)
+    const cardGlow = this.add.graphics().setDepth(3);
+    this._drawRoundRect(cardGlow, cardX - 3, cardY - 3, cardW + 6, cardH + 6, 18, 0x8800ff, 0.0, 0x7700ee, 0.55);
     this.tweens.add({
-      targets: cardGlow, alpha: { from: 0.22, to: 0.48 },
-      duration: 1600, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
+      targets: cardGlow, alpha: { from: 0.7, to: 1 },
+      duration: 2000, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
     });
 
-    this.add.rectangle(cx, cy, cardW, cardH, 0x0d0820, 0.97).setDepth(4);
-    // Top accent line
-    this.add.rectangle(cx, cardY + 2, cardW, 2, 0x8800ff, 1).setDepth(5);
-    this.add.rectangle(cx, cardY + cardH - 2, cardW, 2, 0x00ffee, 0.6).setDepth(5);
-    // Side accent lines
-    this.add.rectangle(cardX + 2, cy, 2, cardH - 4, 0x440066, 0.5).setDepth(5);
-    this.add.rectangle(cardX + cardW - 2, cy, 2, cardH - 4, 0x440066, 0.5).setDepth(5);
+    // Card body — dark semi-transparent glass
+    const cardBg = this.add.graphics().setDepth(4);
+    this._drawRoundRect(cardBg, cardX, cardY, cardW, cardH, 16, 0x0c0820, 0.94, null, 0);
 
-    // Corner decorations
-    const cornerGfx = this.add.graphics().setDepth(5);
-    const corners = [
-      [cardX + 1, cardY + 1], [cardX + cardW - 1, cardY + 1],
-      [cardX + 1, cardY + cardH - 1], [cardX + cardW - 1, cardY + cardH - 1]
-    ];
-    corners.forEach(([x, y]) => {
-      cornerGfx.fillStyle(0xaa44ff, 0.8);
-      cornerGfx.fillRect(x - 3, y - 3, 6, 6);
-    });
+    // Inner top cyan accent line
+    const accentTop = this.add.graphics().setDepth(5);
+    accentTop.lineStyle(1, 0x00eeff, 0.35);
+    accentTop.strokeRoundedRect(cardX + 1, cardY + 1, cardW - 2, cardH - 2, 15);
 
-    // Header
-    this.add.text(cx, cardY + 28, '── MISSION BRIEFING ──', {
-      fontFamily: '"Courier New", monospace',
-      fontSize: '13px', color: '#6644aa', letterSpacing: 3
+    // ── HOW TO PLAY title ─────────────────────────────────────
+    this.add.text(cx, cardY + 38, 'HOW TO PLAY', {
+      fontFamily: '"Poppins", "Rajdhani", Arial, sans-serif',
+      fontSize: '30px', fontStyle: 'bold',
+      color: '#cc88ff',
+      shadow: { offsetX: 0, offsetY: 0, color: '#8800ff', blur: 22, fill: true }
     }).setOrigin(0.5).setDepth(6);
 
-    this.add.text(cx, cardY + 60, 'NIGHT 1', {
-      fontFamily: '"Courier New", monospace',
-      fontSize: '40px', color: '#ffffff',
-      stroke: '#8800ff', strokeThickness: 2,
-      shadow: { offsetX: 0, offsetY: 0, color: '#aa44ff', blur: 22, fill: true }
-    }).setOrigin(0.5).setDepth(6);
+    // Divider
+    const divGfx = this.add.graphics().setDepth(6);
+    divGfx.lineStyle(1, 0x5500aa, 0.7);
+    divGfx.lineBetween(cardX + 60, cardY + 62, cardX + cardW - 60, cardY + 62);
+    divGfx.fillStyle(0x9944ff, 1);
+    divGfx.fillRect(cx - 3, cardY + 59, 6, 6); // center diamond
 
-    // Divider with diamonds
-    this.add.rectangle(cx, cardY + 94, cardW - 60, 1, 0x442266, 1).setDepth(6);
-    this.add.text(cx, cardY + 90, '◆', {
-      fontFamily: '"Courier New", monospace', fontSize: '10px', color: '#6600cc'
-    }).setOrigin(0.5).setDepth(6);
+    // ── Two column layout ─────────────────────────────────────
+    const colL = cardX + 44;
+    const colR = cx + 20;
+    let yL = cardY + 82;
+    let yR = cardY + 82;
 
-    // Data rows
-    const rows = [
-      { label: 'TARGET',       value: 'Apartment 01',  color: '#ffffff' },
-      { label: 'LOOT',         value: '3 ITEMS',        color: '#ffdd44' },
-      { label: 'OWNER STATUS', value: 'Sleeping  \u{1F4A4}', color: '#44ffaa' },
-      { label: 'TIME LIMIT',   value: '90 SECONDS',     color: '#ff6644' },
-    ];
+    // ── LEFT COLUMN ───────────────────────────────────────────
 
-    rows.forEach((row, i) => {
-      const rowY = cardY + 118 + i * 48;
-      // Row separator
-      if (i > 0) {
-        this.add.rectangle(cx, rowY - 6, cardW - 80, 1, 0x221133, 0.6).setDepth(6);
-      }
-      this.add.text(cardX + 54, rowY, row.label, {
-        fontFamily: '"Courier New", monospace',
-        fontSize: '11px', color: '#554488', letterSpacing: 2
-      }).setDepth(6);
-      this.add.text(cardX + 54, rowY + 18, row.value, {
-        fontFamily: '"Courier New", monospace',
-        fontSize: '20px', color: row.color,
-        shadow: { offsetX: 0, offsetY: 0, color: row.color, blur: 8, fill: true }
-      }).setDepth(6);
-    });
+    // OBJECTIVE
+    yL = this._section(colL, yL, 'OBJECTIVE',
+      'Collect all 4 loot items\nand escape without getting caught.\nThe owner wakes up if you make too much noise.',
+      0x00eeff, 6);
 
-    // ── Press SPACE key visual ────────────────────────────────
-    const keyY = cardY + cardH + 48;
+    yL += 14;
 
-    // Keyboard key frame
-    const keyW = 92, keyH = 34;
-    const keyBg = this.add.graphics().setDepth(7);
-    keyBg.fillStyle(0x1a0d36, 0.95);
-    keyBg.fillRoundedRect(cx - keyW / 2, keyY - keyH / 2, keyW, keyH, 6);
-    keyBg.lineStyle(2, 0x8800ff, 0.9);
-    keyBg.strokeRoundedRect(cx - keyW / 2, keyY - keyH / 2, keyW, keyH, 6);
-    // Key bottom shadow (3D effect)
-    keyBg.lineStyle(3, 0x440066, 0.6);
-    keyBg.lineBetween(cx - keyW / 2 + 4, keyY + keyH / 2 + 2, cx + keyW / 2 - 4, keyY + keyH / 2 + 2);
+    // CONTROLS
+    this._sectionLabel(colL, yL, 'CONTROLS', 0x00eeff, 6);
+    yL += 22;
+    yL = this._drawControls(colL, yL);
 
-    this.add.text(cx, keyY, 'SPACE', {
-      fontFamily: '"Courier New", monospace',
-      fontSize: '14px', color: '#ddccff',
-      shadow: { offsetX: 0, offsetY: 0, color: '#8800ff', blur: 8, fill: true }
+    yL += 14;
+
+    // GAME RULES
+    yL = this._section(colL, yL, 'GAME RULES', null, 0x00eeff, 6, [
+      'Making noise increases suspicion.',
+      'Running creates more noise.',
+      'If suspicion maxes, owner wakes up.',
+      'Hide in wardrobes / safe zones.',
+      'Escape after collecting all loot.',
+    ]);
+
+    // ── RIGHT COLUMN ──────────────────────────────────────────
+
+    // WIN CONDITION
+    yR = this._section(colR, yR, 'WIN CONDITION',
+      'Collect all loot and reach\nthe exit door safely.',
+      0xaa44ff, 6);
+
+    yR += 14;
+
+    // SOUND & AUDIO
+    yR = this._section(colR, yR, 'SOUND & AUDIO',
+      'Rain and music create the atmosphere.\nUse the top-right audio buttons anytime.\n🎵 = ambient   🔊 = sound effects',
+      0xaa44ff, 6);
+
+    yR += 8;
+    this.add.text(colR, yR, '🎧 Best experienced with headphones', {
+      fontFamily: '"Poppins", Arial, sans-serif',
+      fontSize: '11px', fontStyle: 'italic',
+      color: '#443366',
+    }).setDepth(6);
+
+    // ── CONTINUE BUTTON ───────────────────────────────────────
+    const btnY = cardY + cardH - 42;
+    const btnW = 220, btnH = 38;
+
+    const btnGfx = this.add.graphics().setDepth(7);
+    this._drawRoundRect(btnGfx, cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 10, 0x1a0840, 0.92, 0x8800ff, 0.85);
+
+    const btnText = this.add.text(cx, btnY, 'PRESS SPACE TO START', {
+      fontFamily: '"Poppins", Arial, sans-serif',
+      fontSize: '13px', fontStyle: 'bold',
+      color: '#ddbbff',
+      shadow: { offsetX: 0, offsetY: 0, color: '#8800ff', blur: 10, fill: true }
     }).setOrigin(0.5).setDepth(8);
 
-    // "to begin" label
-    const promptLabel = this.add.text(cx, keyY + 30, 'to begin the heist', {
-      fontFamily: '"Courier New", monospace',
-      fontSize: '13px', color: '#665588', letterSpacing: 2
-    }).setOrigin(0.5).setDepth(7);
+    this.add.text(cx, btnY + 26, 'Begin the heist', {
+      fontFamily: '"Poppins", Arial, sans-serif',
+      fontSize: '11px', fontStyle: 'italic',
+      color: '#554477',
+    }).setOrigin(0.5).setDepth(8);
 
-    // Key press pulse animation
+    // Pulse
     this.tweens.add({
-      targets: [keyBg, promptLabel], alpha: { from: 1, to: 0.35 },
-      duration: 800, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
+      targets: [btnGfx, btnText], alpha: { from: 1, to: 0.45 },
+      duration: 900, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
     });
 
-    // Key shadow bob
-    this.tweens.add({
-      targets: keyBg, y: { from: 0, to: 2 },
-      duration: 800, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
-    });
-
-    // ── Audio: sync state, raise ambient slightly ─────────────
+    // ── Audio ─────────────────────────────────────────────────
     AM.init(this);
     AM.sync(this);
-    AM.raiseAmbient(this, 600);   // bring back up from menu duck
+    AM.raiseAmbient(this, 600);
 
-    // ── Mute button ──────────────────────────────────────────
     this._muteBtn = new MuteButton(this);
     this.time.delayedCall(80, () => this._muteBtn.sync());
 
-    // ── Input ────────────────────────────────────────────────
+    // ── Input ─────────────────────────────────────────────────
     this._ready = false;
     this.input.keyboard.once('keydown-SPACE', () => this._startHeist());
-    this.input.once('pointerdown', () => this._startHeist());
+    this.input.once('pointerdown', (ptr) => {
+      // Only trigger if not clicking mute buttons
+      if (ptr.y < 50) return;
+      this._startHeist();
+    });
 
-    // ── Particle + fade in ───────────────────────────────────
-    this.cameras.main.fadeIn(500, 0, 0, 0);
+    // ── Fade in ───────────────────────────────────────────────
+    this.cameras.main.fadeIn(600, 0, 0, 0);
 
-    // ── Update loop ──────────────────────────────────────────
+    // ── Update — rain ─────────────────────────────────────────
     this.events.on('update', () => {
-      ptGfx.clear();
-      pts.forEach(p => {
-        p.x += p.vx; p.y += p.vy;
-        if (p.y < -10) { p.y = H + 5; p.x = Math.random() * W; }
-        ptGfx.fillStyle(0xaa44ff, p.alpha * 0.6);
-        ptGfx.fillCircle(p.x, p.y, p.r);
+      rainGfx.clear();
+      rainGfx.lineStyle(1, 0x6688cc, 1);
+      rainDrops.forEach(d => {
+        d.y += d.speed;
+        if (d.y > H + 20) { d.y = -20; d.x = Math.random() * W; }
+        rainGfx.lineBetween(d.x, d.y, d.x + d.drift, d.y + d.len);
       });
     });
+  }
+
+  // ── Helpers ───────────────────────────────────────────────
+
+  _makeRainDrop(W, H, randomY = false) {
+    return {
+      x:     Math.random() * W,
+      y:     randomY ? Math.random() * H : -20,
+      speed: 3.5 + Math.random() * 3,
+      len:   9 + Math.random() * 10,
+      drift: 0.5 + Math.random() * 1,
+    };
+  }
+
+  _drawRoundRect(gfx, x, y, w, h, r, fillColor, fillAlpha, strokeColor, strokeAlpha) {
+    if (fillAlpha > 0) {
+      gfx.fillStyle(fillColor, fillAlpha);
+      gfx.fillRoundedRect(x, y, w, h, r);
+    }
+    if (strokeColor && strokeAlpha > 0) {
+      gfx.lineStyle(2, strokeColor, strokeAlpha);
+      gfx.strokeRoundedRect(x, y, w, h, r);
+    }
+  }
+
+  _sectionLabel(x, y, label, color, depth) {
+    const hex = '#' + color.toString(16).padStart(6, '0');
+    this.add.text(x, y, label, {
+      fontFamily: '"Poppins", Arial, sans-serif',
+      fontSize: '12px', fontStyle: 'bold',
+      color: hex,
+      shadow: { offsetX: 0, offsetY: 0, color: hex, blur: 8, fill: true }
+    }).setDepth(depth);
+    return y + 18;
+  }
+
+  _section(x, y, label, body, color, depth, bullets = null) {
+    y = this._sectionLabel(x, y, label, color, depth);
+    if (body) {
+      this.add.text(x, y, body, {
+        fontFamily: '"Poppins", Arial, sans-serif',
+        fontSize: '11px', color: '#aaa8cc',
+        wordWrap: { width: 290 }, lineSpacing: 4,
+      }).setDepth(depth);
+      const lines = body.split('\n').length;
+      y += lines * 16 + 10;
+    }
+    if (bullets) {
+      bullets.forEach(b => {
+        this.add.text(x, y, '· ' + b, {
+          fontFamily: '"Poppins", Arial, sans-serif',
+          fontSize: '11px', color: '#9988bb',
+          wordWrap: { width: 290 },
+        }).setDepth(depth);
+        y += 16;
+      });
+      y += 6;
+    }
+    return y;
+  }
+
+  _drawControls(x, y) {
+    const keys = [
+      { keys: ['W'], label: null },
+      { keys: ['A', 'S', 'D'], label: 'Move' },
+      { keys: ['SHIFT'], label: 'Run (more noise)' },
+      { keys: ['E'], label: 'Interact / Pickup / Hide' },
+    ];
+
+    const keyH = 20, keyPad = 5;
+    const keyColor = 0x1a0840;
+    const keyBorder = 0x6622cc;
+    const gfx = this.add.graphics().setDepth(6);
+
+    // WASD group
+    const wasdRows = [['W'], ['A', 'S', 'D']];
+    let ky = y;
+    wasdRows.forEach((row, ri) => {
+      let kx = x + (ri === 0 ? 22 : 0); // indent W
+      row.forEach(k => {
+        const kw = k === 'SHIFT' ? 52 : (k.length > 1 ? 40 : 22);
+        gfx.fillStyle(keyColor, 0.95);
+        gfx.fillRoundedRect(kx, ky, kw, keyH, 4);
+        gfx.lineStyle(1.5, keyBorder, 0.85);
+        gfx.strokeRoundedRect(kx, ky, kw, keyH, 4);
+        this.add.text(kx + kw / 2, ky + keyH / 2, k, {
+          fontFamily: '"Poppins", Arial, sans-serif',
+          fontSize: '10px', fontStyle: 'bold', color: '#ccbbee',
+        }).setOrigin(0.5).setDepth(7);
+        kx += kw + keyPad;
+      });
+      ky += keyH + keyPad;
+    });
+    // Move label
+    this.add.text(x + 72, y + 8, 'Move', {
+      fontFamily: '"Poppins", Arial, sans-serif',
+      fontSize: '11px', color: '#9988bb',
+    }).setDepth(6);
+
+    ky += 4;
+
+    // SHIFT row
+    const shiftKw = 52;
+    gfx.fillStyle(keyColor, 0.95);
+    gfx.fillRoundedRect(x, ky, shiftKw, keyH, 4);
+    gfx.lineStyle(1.5, keyBorder, 0.85);
+    gfx.strokeRoundedRect(x, ky, shiftKw, keyH, 4);
+    this.add.text(x + shiftKw / 2, ky + keyH / 2, 'SHIFT', {
+      fontFamily: '"Poppins", Arial, sans-serif',
+      fontSize: '9px', fontStyle: 'bold', color: '#ccbbee',
+    }).setOrigin(0.5).setDepth(7);
+    this.add.text(x + shiftKw + 8, ky + keyH / 2, 'Run (more noise)', {
+      fontFamily: '"Poppins", Arial, sans-serif',
+      fontSize: '11px', color: '#9988bb',
+    }).setOrigin(0, 0.5).setDepth(6);
+    ky += keyH + keyPad + 4;
+
+    // E row
+    const ekw = 22;
+    gfx.fillStyle(keyColor, 0.95);
+    gfx.fillRoundedRect(x, ky, ekw, keyH, 4);
+    gfx.lineStyle(1.5, keyBorder, 0.85);
+    gfx.strokeRoundedRect(x, ky, ekw, keyH, 4);
+    this.add.text(x + ekw / 2, ky + keyH / 2, 'E', {
+      fontFamily: '"Poppins", Arial, sans-serif',
+      fontSize: '10px', fontStyle: 'bold', color: '#ccbbee',
+    }).setOrigin(0.5).setDepth(7);
+    this.add.text(x + ekw + 8, ky + keyH / 2, 'Interact / Hide', {
+      fontFamily: '"Poppins", Arial, sans-serif',
+      fontSize: '11px', color: '#9988bb',
+    }).setOrigin(0, 0.5).setDepth(6);
+    ky += keyH + 6;
+
+    return ky;
   }
 
   _startHeist() {
     if (this._ready) return;
     this._ready = true;
-
     AM.playSfx(this, 'door_unlock', { volume: 0.6 });
-    // Keep ambient running into gameplay — music continues in GameScene
-
-    this.time.delayedCall(400, () => {
+    this.time.delayedCall(300, () => {
       this.cameras.main.fadeOut(700, 0, 0, 0);
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start('GameScene');
