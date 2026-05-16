@@ -570,8 +570,12 @@ export default class GameScene extends Phaser.Scene {
     this.player.setVelocity(0,0); this.owner.setVelocity(0,0);
     this.playSfx('success',{minGap:2000,delay:70});
     this.cameras.main.fade(800,14,9,9);
-    this.updatePrompt('ESCAPED! Heading to Room 2...');
-    this.time.delayedCall(900, () => this.scene.start('Room2Scene'));
+    this.updatePrompt('ESCAPED!');
+    this.time.delayedCall(900, () => this.scene.start('TransitionScene', {
+      nextScene: 'Room2Scene',
+      night: 2,
+      lootCount: this.lootSystem.collectedCount || 0
+    }));
   }
 
   onCaught() {
