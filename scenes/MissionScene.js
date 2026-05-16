@@ -1,5 +1,6 @@
 // MissionScene — stylish mission briefing card, SPACE to begin heist
 import MuteButton from './systems/MuteButton.js';
+import AM         from './systems/AudioManager.js';
 export default class MissionScene extends Phaser.Scene {
   constructor() { super('MissionScene'); }
 
@@ -147,14 +148,14 @@ export default class MissionScene extends Phaser.Scene {
       duration: 800, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
     });
 
-    // ── Soft music continuation ──────────────────────────────
-    const music = this.sound.get('menu_music');
-    if (music && music.isPlaying) {
-      this.tweens.add({ targets: music, volume: 0.15, duration: 600 });
-    }
+    // ── Audio: sync state, raise ambient slightly ─────────────
+    AM.init(this);
+    AM.sync(this);
+    AM.raiseAmbient(this, 600);   // bring back up from menu duck
 
     // ── Mute button ──────────────────────────────────────────
     this._muteBtn = new MuteButton(this);
+    this.time.delayedCall(80, () => this._muteBtn.sync());
 
     // ── Input ────────────────────────────────────────────────
     this._ready = false;
@@ -180,15 +181,13 @@ export default class MissionScene extends Phaser.Scene {
     if (this._ready) return;
     this._ready = true;
 
-    try { this.sound.play('door_unlock', { volume: 0.6 }); } catch(e) {}
-
-    const music = this.sound.get('menu_music');
-    if (music) this.tweens.add({ targets: music, volume: 0, duration: 1000 });
+    AM.playSfx(this, 'door_unlock', { volume: 0.6 });
+    // Fade out ambient before gameplay (GameScene has its own ambience)
+    AM.stopAmbient(this, 900);
 
     this.time.delayedCall(400, () => {
       this.cameras.main.fadeOut(700, 0, 0, 0);
       this.cameras.main.once('camerafadeoutcomplete', () => {
-        if (music) music.stop();
         this.scene.start('GameScene');
       });
     });

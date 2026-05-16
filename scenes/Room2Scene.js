@@ -5,6 +5,7 @@ import TimerSystem     from './systems/TimerSystem.js';
 import RankSystem      from './systems/RankSystem.js';
 import FurnitureSystem from './systems/FurnitureSystem.js';
 import MuteButton      from './systems/MuteButton.js';
+import AM              from './systems/AudioManager.js';
 
 /**
  * Room 2 — Gamer / Tech Room
@@ -572,8 +573,13 @@ export default class Room2Scene extends Phaser.Scene {
       success:        this.sound.add('success',         { volume:0.85 })
     };
 
+    // Audio manager sync
+    AM.init(this);
+    AM.sync(this);
+
     // Mute button — top-right corner, bg audio only
     this._muteBtn = new MuteButton(this);
+    this.time.delayedCall(80, () => this._muteBtn.sync());
   }
 
   _setupPolish() {
@@ -998,7 +1004,7 @@ export default class Room2Scene extends Phaser.Scene {
   }
 
   playSfx(key, options={}) {
-    if (window._sfxMuted) return;
+    if (AM.sfxMuted) return;
     const sound = this.sfx?.[key]; if (!sound) return;
     const now   = this.time.now;
     const minGap = options.minGap ?? 0;
