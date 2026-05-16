@@ -85,6 +85,10 @@ export default class Room2Scene extends Phaser.Scene {
 
   /* ───────────────────────── CREATE ────────────────────────── */
   create() {
+    // Show game HUD for Room 2
+    document.body.classList.remove('hud-hidden');
+    document.body.classList.add('hud-visible');
+
     // Reset all flags
     this.chaseMode          = false;
     this.hidden             = false;
@@ -994,6 +998,7 @@ export default class Room2Scene extends Phaser.Scene {
   }
 
   playSfx(key, options={}) {
+    if (window._sfxMuted) return;
     const sound = this.sfx?.[key]; if (!sound) return;
     const now   = this.time.now;
     const minGap = options.minGap ?? 0;

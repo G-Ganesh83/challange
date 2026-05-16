@@ -1,91 +1,134 @@
 /**
- * MuteButton — toggles background music + rain only.
- * SFX (fahh, footstep, pickup, etc.) are never touched.
+ * AudioButtons — two neon pixel-art icon buttons, top-right corner.
+ *
+ * Button 1 (AMBIENT):  controls music + rain. Icon = neon speaker/wave.
+ * Button 2 (SFX):      controls fahh, footstep, pickup, etc. Icon = EQ bars.
+ *
+ * Global state on window._bgMuted / window._sfxMuted persists across scenes.
  *
  * Usage:
  *   import MuteButton from './systems/MuteButton.js';
- *   // in create():
- *   this._muteBtn = new MuteButton(this);
- *
- * Global state stored on window._bgMuted so it survives scene switches.
+ *   this._muteBtn = new MuteButton(scene);
+ *   // after starting sounds:
+ *   this._muteBtn.sync();
  */
 export default class MuteButton {
-  /**
-   * @param {Phaser.Scene} scene
-   * @param {object} [opts]
-   * @param {number} [opts.x=928]   right edge x
-   * @param {number} [opts.y=24]    top y
-   * @param {number} [opts.depth=99]
-   */
   constructor(scene, opts = {}) {
     this._scene = scene;
-    const x     = opts.x     ?? 928;
-    const y     = opts.y     ?? 24;
+    const baseX = opts.x ?? 910;
+    const baseY = opts.y ?? 28;
     const depth = opts.depth ?? 99;
 
-    if (window._bgMuted === undefined) window._bgMuted = false;
+    if (window._bgMuted  === undefined) window._bgMuted  = false;
+    if (window._sfxMuted === undefined) window._sfxMuted = false;
 
-    // Button circle BG
-    this._bg = scene.add.circle(x, y, 18, 0x000000, 0.55)
-      .setDepth(depth).setInteractive({ useHandCursor: true });
+    // Ambient button at baseX, SFX button 46px to the left
+    this._ambBtn = this._makeButton(baseX - 46, baseY, depth, '🔊', '#00ffee', () => this._toggleAmbient());
+    this._sfxBtn = this._makeButton(baseX,      baseY, depth, '🎚', '#aa44ff', () => this._toggleSfx());
 
-    // Icon text: 🔊 / 🔇
-    this._icon = scene.add.text(x, y, this._label(), {
-      fontFamily: 'Arial', fontSize: '16px'
+    this._updateVisuals();
+  }
+
+  _makeButton(x, y, depth, iconChar, glowColor, onClick) {
+    const scene = this._scene;
+
+    // Outer glow ring
+    const ring = scene.add.graphics().setDepth(depth - 1);
+    ring._draw = (active) => {
+      ring.clear();
+      if (active) {
+        ring.lineStyle(2, Phaser.Display.Color.HexStringToColor(glowColor).color, 0.5);
+        ring.strokeCircle(x, y, 20);
+      }
+    };
+
+    // BG circle
+    const bg = scene.add.circle(x, y, 17, 0x0a0618, 0.85)
+      .setStrokeStyle(1.5, Phaser.Display.Color.HexStringToColor(glowColor).color, 0.7)
+      .setDepth(depth)
+      .setInteractive({ useHandCursor: true });
+
+    // Icon
+    const icon = scene.add.text(x, y, iconChar, {
+      fontFamily: 'Arial', fontSize: '15px'
     }).setOrigin(0.5).setDepth(depth + 1);
 
-    // Border
-    this._border = scene.add.circle(x, y, 18)
-      .setStrokeStyle(1, 0x8866cc, 0.7).setDepth(depth);
-
     // Hover
-    this._bg.on('pointerover', () => {
-      this._bg.setFillStyle(0x330055, 0.75);
+    bg.on('pointerover', () => {
+      scene.tweens.add({ targets: [bg, icon], scaleX: 1.15, scaleY: 1.15, duration: 80, ease: 'Power2' });
     });
-    this._bg.on('pointerout', () => {
-      this._bg.setFillStyle(0x000000, 0.55);
+    bg.on('pointerout', () => {
+      scene.tweens.add({ targets: [bg, icon], scaleX: 1, scaleY: 1, duration: 100, ease: 'Power2' });
     });
-    this._bg.on('pointerdown', () => this._toggle());
+    bg.on('pointerdown', () => {
+      scene.tweens.add({ targets: [bg, icon], scaleX: 0.88, scaleY: 0.88, duration: 60,
+        yoyo: true, ease: 'Power2' });
+      onClick();
+    });
 
-    // Sync to current state immediately
-    this._apply();
+    return { bg, icon, ring, x, y, glowColor };
   }
 
-  _label() {
-    return window._bgMuted ? '🔇' : '🔊';
+  _updateVisuals() {
+    const ambActive  = !window._bgMuted;
+    const sfxActive  = !window._sfxMuted;
+
+    // Ambient button
+    const ab = this._ambBtn;
+    ab.ring._draw(ambActive);
+    ab.icon.setAlpha(ambActive ? 1 : 0.35);
+    ab.bg.setAlpha(ambActive ? 0.9 : 0.55);
+    ab.icon.setText(window._bgMuted  ? '🔇' : '🔊');
+
+    // SFX button
+    const sb = this._sfxBtn;
+    sb.ring._draw(sfxActive);
+    sb.icon.setAlpha(sfxActive ? 1 : 0.35);
+    sb.bg.setAlpha(sfxActive ? 0.9 : 0.55);
+    sb.icon.setText(window._sfxMuted ? '📵' : '🎚');
   }
 
-  _toggle() {
+  _toggleAmbient() {
     window._bgMuted = !window._bgMuted;
-    this._icon.setText(this._label());
-    this._apply();
+    this._applyAmbient();
+    this._updateVisuals();
   }
 
-  _apply() {
+  _toggleSfx() {
+    window._sfxMuted = !window._sfxMuted;
+    this._applySfx();
+    this._updateVisuals();
+  }
+
+  _applyAmbient() {
+    const scene  = this._scene;
+    const muted  = window._bgMuted;
+    const music  = scene.sound.get('menu_music');
+    if (music) music.setVolume(muted ? 0 : 0.28);
+    const rain   = scene.sound.get('rain');
+    if (rain)  rain.setVolume(muted ? 0 : 0.18);
+  }
+
+  _applySfx() {
     const scene = this._scene;
-    const muted = window._bgMuted;
-
-    // music
-    const music = scene.sound.get('menu_music');
-    if (music) {
-      muted ? music.setVolume(0) : music.setVolume(0.28);
-    }
-
-    // rain (may be keyed differently per scene)
-    ['rain'].forEach(key => {
-      const snd = scene.sound.get(key);
-      if (snd) {
-        muted ? snd.setVolume(0) : snd.setVolume(0.18);
-      }
+    const muted = window._sfxMuted;
+    const SFX_KEYS = ['fahh','footstep','pickup','enter','out','safe','success','coreTransition','neon_buzz','door_unlock'];
+    SFX_KEYS.forEach(k => {
+      const s = scene.sound.get(k);
+      if (s) s.setVolume(muted ? 0 : (s._baseVol ?? s.volume));
     });
   }
 
-  /** Call this after adding/starting background sounds so volumes sync */
-  sync() { this._apply(); }
+  /** Call after starting bg sounds to apply current mute state */
+  sync() {
+    this._applyAmbient();
+    this._applySfx();
+    this._updateVisuals();
+  }
 
   destroy() {
-    this._bg.destroy();
-    this._icon.destroy();
-    this._border.destroy();
+    [this._ambBtn, this._sfxBtn].forEach(b => {
+      b.bg.destroy(); b.icon.destroy(); b.ring.destroy();
+    });
   }
 }

@@ -10,6 +10,10 @@ export default class TransitionScene extends Phaser.Scene {
   }
 
   create() {
+    // Hide game HUD during transitions
+    document.body.classList.remove('hud-visible');
+    document.body.classList.add('hud-hidden');
+
     const W = 960, H = 640;
     const cx = W / 2, cy = H / 2;
 

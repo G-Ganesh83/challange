@@ -62,6 +62,10 @@ export default class GameScene extends Phaser.Scene {
 
   /* ───────────────────────── CREATE ────────────────────────── */
   create() {
+    // Show game HUD — hidden during menus
+    document.body.classList.remove('hud-hidden');
+    document.body.classList.add('hud-visible');
+
     // Reset flags
     this.chaseMode = false;
     this.hidden = false;
@@ -595,7 +599,7 @@ export default class GameScene extends Phaser.Scene {
     this.screenShake(180);
     this.flashRed();
     this.cameras.main.flash(300, 180, 0, 0);
-    this.sound.play('fahh', { volume: 1.0, rate: 0.8, detune: -300 });
+    if (!window._sfxMuted) this.sound.play('fahh', { volume: 1.0, rate: 0.8, detune: -300 });
     this.add.text(480, 312, 'BUSTED!', {
       fontFamily: '"Press Start 2P"', fontSize: '30px',
       color: '#fffbf2', stroke: '#a51f1f', strokeThickness: 6
@@ -674,10 +678,11 @@ export default class GameScene extends Phaser.Scene {
     const interval=sprinting?180:260, volume=sprinting?0.22:0.16;
     if (time-this.lastFootstepAt<interval) return;
     this.lastFootstepAt=time;
-    this.sound.play('footstep',{volume,rate:sprinting?1.08:1.0,detune:sprinting?10:0});
+    if (!window._sfxMuted) this.sound.play('footstep',{volume,rate:sprinting?1.08:1.0,detune:sprinting?10:0});
   }
 
   playSfx(key, options={}) {
+    if (window._sfxMuted) return;
     const sound=this.sfx?.[key]; if(!sound) return;
     const now=this.time.now;
     const minGap=options.minGap??0;
