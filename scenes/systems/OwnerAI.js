@@ -1,28 +1,52 @@
 /**
- * OwnerAI — sleeping → stir → chase state machine + stuck/detour pathfinding.
+ * OwnerAI — sleeping → patrol → stir → chase state machine.
+ * Accepts a config object to tune thresholds and patrol behaviour per room.
+ *
+ * Config defaults (Room 1 compatible):
+ *   stirThreshold  : 0.55   — noise level that triggers a stir bubble
+ *   wakeThreshold  : 0.80   — noise level that triggers full chase
+ *   chaseSpeed     : 72     — px/s during chase
+ *   stirCooldown   : 2200   — ms between stir events
+ *   patrolPoints   : null   — array of {x,y} for patrol (null = stationary)
+ *   patrolSpeed    : 38     — px/s during patrol
  */
 export default class OwnerAI {
-  constructor(scene) {
+  constructor(scene, config = {}) {
     this.scene = scene;
-    this.stuckMs = 0;
-    this.lastPos = { x: 0, y: 0 };
+    this.cfg = {
+      stirThreshold : config.stirThreshold  ?? 0.55,
+      wakeThreshold : config.wakeThreshold  ?? 0.80,
+      chaseSpeed    : config.chaseSpeed     ?? 72,
+      stirCooldown  : config.stirCooldown   ?? 2200,
+      patrolPoints  : config.patrolPoints   ?? null,
+      patrolSpeed   : config.patrolSpeed    ?? 38,
+    };
+
+    this.stuckMs     = 0;
+    this.lastPos     = { x: 0, y: 0 };
     this.detourUntil = 0;
-    this.detourDir = new Phaser.Math.Vector2(0, 0);
-    this.lastStirAt = 0;
-    this.alertScale = 0.28;
+    this.detourDir   = new Phaser.Math.Vector2(0, 0);
+    this.lastStirAt  = 0;
+    this.alertScale  = 0.28;
+
+    // Patrol state
+    this._patrolIdx   = 0;
+    this._patrolPause = 0; // timestamp until which owner stands still at waypoint
   }
 
   reset() {
-    this.stuckMs = 0;
-    this.lastPos = { x: 0, y: 0 };
+    this.stuckMs     = 0;
+    this.lastPos     = { x: 0, y: 0 };
     this.detourUntil = 0;
-    this.detourDir = new Phaser.Math.Vector2(0, 0);
-    this.lastStirAt = 0;
+    this.detourDir   = new Phaser.Math.Vector2(0, 0);
+    this.lastStirAt  = 0;
+    this._patrolIdx  = 0;
+    this._patrolPause = 0;
   }
 
   update(dt) {
     const s = this.scene;
-    const { owner, player, noiseSystem } = s;
+    const { owner, noiseSystem } = s;
     const noise = noiseSystem.noise;
 
     if (s.chaseMode) {
@@ -30,10 +54,10 @@ export default class OwnerAI {
       return;
     }
 
-    // Mid suspicion — stir without waking fully
-    if (noise >= 0.55 && noise < 0.8) {
+    // Stir bubble — mid suspicion
+    if (noise >= this.cfg.stirThreshold && noise < this.cfg.wakeThreshold) {
       const now = s.time.now;
-      if (now - this.lastStirAt > 2200) {
+      if (now - this.lastStirAt > this.cfg.stirCooldown) {
         this.lastStirAt = now;
         s.ownerWakeBurst('?');
         s.sound.play('coreTransition', { volume: 0.18, rate: 1.12, detune: 40 });
@@ -41,8 +65,8 @@ export default class OwnerAI {
       }
     }
 
-    // Full panic threshold
-    if (noise >= 0.8) {
+    // Full wake threshold
+    if (noise >= this.cfg.wakeThreshold) {
       s.chaseMode = true;
       s.chaseModeHappened = true;
       owner.state = 'chase';
@@ -63,7 +87,39 @@ export default class OwnerAI {
       return;
     }
 
-    owner.setVelocity(0, 0);
+    // Patrol or stand still
+    if (this.cfg.patrolPoints?.length) {
+      this._handlePatrol(dt);
+    } else {
+      owner.setVelocity(0, 0);
+    }
+  }
+
+  _handlePatrol(dt) {
+    const s = this.scene;
+    const { owner } = s;
+    const now = s.time.now;
+
+    // Paused at waypoint
+    if (now < this._patrolPause) {
+      owner.setVelocity(0, 0);
+      return;
+    }
+
+    const pts = this.cfg.patrolPoints;
+    const target = pts[this._patrolIdx % pts.length];
+    const dist = Phaser.Math.Distance.Between(owner.x, owner.y, target.x, target.y);
+
+    if (dist < 10) {
+      // Reached waypoint — pause then advance
+      owner.setVelocity(0, 0);
+      this._patrolPause = now + Phaser.Math.Between(600, 1400);
+      this._patrolIdx = (this._patrolIdx + 1) % pts.length;
+      return;
+    }
+
+    const dir = new Phaser.Math.Vector2(target.x - owner.x, target.y - owner.y).normalize();
+    owner.setVelocity(dir.x * this.cfg.patrolSpeed, dir.y * this.cfg.patrolSpeed);
   }
 
   _handleChase(dt) {
@@ -125,7 +181,7 @@ export default class OwnerAI {
 
     if (steer.lengthSq() < 0.0001) steer = desired;
     steer.normalize();
-    owner.setVelocity(steer.x * 72, steer.y * 72);
+    owner.setVelocity(steer.x * this.cfg.chaseSpeed, steer.y * this.cfg.chaseSpeed);
     owner.setVisible(true);
   }
 

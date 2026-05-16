@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
-import NoiseSystem  from './systems/NoiseSystem.js';
-import LootSystem   from './systems/LootSystem.js';
-import OwnerAI      from './systems/OwnerAI.js';
-import TimerSystem  from './systems/TimerSystem.js';
-import RankSystem   from './systems/RankSystem.js';
+import NoiseSystem       from './systems/NoiseSystem.js';
+import LootSystem        from './systems/LootSystem.js';
+import OwnerAI           from './systems/OwnerAI.js';
+import TimerSystem       from './systems/TimerSystem.js';
+import RankSystem        from './systems/RankSystem.js';
+import FurnitureSystem   from './systems/FurnitureSystem.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -80,11 +81,13 @@ export default class GameScene extends Phaser.Scene {
     this.debugWallsEnabled = new URLSearchParams(window.location.search).has('debugWalls');
 
     // Systems
-    this.noiseSystem = new NoiseSystem(this);
-    this.lootSystem  = new LootSystem(this);
-    this.ownerAI     = new OwnerAI(this);
-    this.timerSystem = new TimerSystem(this);
-    this.rankSystem  = new RankSystem(this);
+    this.noiseSystem      = new NoiseSystem(this);
+    this.lootSystem       = new LootSystem(this);
+    this.ownerAI          = new OwnerAI(this);
+    this.timerSystem      = new TimerSystem(this);
+    this.rankSystem       = new RankSystem(this);
+    this.furnitureSystem  = new FurnitureSystem(this);
+    this.furnitureSystem.init();
 
     this.createTextures();
     this.createRoom();
@@ -199,9 +202,29 @@ export default class GameScene extends Phaser.Scene {
     this.chair = this.add.image(180,400,'chair').setScale(0.22).setDepth(19);
     this.lamp  = this.add.image(370,130,'lamp').setScale(0.14).setDepth(21);
     this.books = this.add.image(820,180,'books').setScale(0.16).setDepth(21);
-    this.add.image(340,520,'plant').setScale(0.24).setDepth(21);
-    this.add.image(720,550,'plant').setScale(0.21).setDepth(21);
+    this.plant1 = this.add.image(340,520,'plant').setScale(0.24).setDepth(21);
+    this.plant2 = this.add.image(720,550,'plant').setScale(0.21).setDepth(21);
     this.bed   = this.add.image(744,214,'bed').setScale(0.3).setDepth(20);
+
+    // Furniture footprints (front/base edge blockers)
+    // Auto-derive footprints from actual sprite bounds — no guessing
+    // desk: expand leftward only — right edge stays, left grows
+    { const s=this.desk, sw=s.displayWidth, sh=s.displayHeight;
+      const oldW = sw*0.25, newW = sw*0.38;
+      const oldCx = s.x - sw*0.12;
+      const rightEdge = oldCx + oldW/2;
+      const cx = rightEdge - newW/2;
+      const cy = (s.y - sh/2) + sh*0.25;
+      this.furnitureSystem.add('desk', cx, cy, newW, 16); }
+    // bed: shifted left
+    { const s=this.bed, sw=s.displayWidth, sh=s.displayHeight;
+      const w=sw*0.30, h=16;
+      const cx = (s.x - sw*0.12) - sw*0.50;
+      const cy = (s.y - sh/2) + sh*0.55;
+      this.furnitureSystem.add('bed', cx, cy, w, h); }
+    this.furnitureSystem.addFromSprite('chair',  this.chair,  0.20, 0.25);
+    this.furnitureSystem.addFromSprite('plant1', this.plant1, 0.18, 0.25);
+    this.furnitureSystem.addFromSprite('plant2', this.plant2, 0.18, 0.25);
 
     const closetX=820, closetY=440;
     this.closet = this.add.image(closetX,closetY,'closet').setScale(0.24).setDepth(20);
@@ -258,11 +281,12 @@ export default class GameScene extends Phaser.Scene {
     this.player = this.physics.add.sprite(480,520,'thief_idle');
     this.player.setSize(22,16).setOffset(27,58);
     this.player.body.enable = true;
-    this.player.speed = 180;
-    this.player.runSpeed = 260;
+    this.player.speed = 220;
+    this.player.runSpeed = 320;
     this.playerDisplayScale = 0.18;
     this.player.setScale(this.playerDisplayScale).setDepth(30).setCollideWorldBounds(true);
     this.physics.add.collider(this.player, this.wallColliders ?? this.roomWalls, this.onPlayerWallContact, null, this);
+    this.furnitureSystem.wirePlayer(this.player);
   }
 
   /* ─────────────────────── OWNER ───────────────────────────── */
@@ -275,6 +299,7 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.owner, this.wallColliders ?? this.roomWalls);
     this.physics.add.collider(this.owner, this.safeZoneBlock);
     this.physics.add.overlap(this.player, this.owner, () => this.onCaught());
+    this.furnitureSystem.wireOwner(this.owner);
   }
 
   /* ─────────────────────── UI ───────────────────────────────── */
@@ -288,6 +313,8 @@ export default class GameScene extends Phaser.Scene {
 
   bindInput() {
     this.cursors = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E');
+    // Dev shortcut: press 2 to jump to Room2Scene
+    this.input.keyboard.once('keydown-TWO', () => this.scene.start('Room2Scene'));
   }
 
   createAudio() {
@@ -540,9 +567,9 @@ export default class GameScene extends Phaser.Scene {
     this.timerSystem.stop();
     this.player.setVelocity(0,0); this.owner.setVelocity(0,0);
     this.playSfx('success',{minGap:2000,delay:70});
-    this.cameras.main.fade(600,14,9,9);
-    this.updatePrompt('ESCAPED!');
-    this.time.delayedCall(620, () => this.rankSystem.showEscapeScreen());
+    this.cameras.main.fade(800,14,9,9);
+    this.updatePrompt('ESCAPED! Heading to Room 2...');
+    this.time.delayedCall(900, () => this.scene.start('Room2Scene'));
   }
 
   onCaught() {
