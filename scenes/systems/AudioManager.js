@@ -1,6 +1,9 @@
 /**
  * AudioManager — singleton on window._AM
  * Single source of truth for audio state across all scenes.
+ *
+ * IMPORTANT: Browsers block audio until a user gesture.
+ * Call AM.unlockAndStart(scene) on first pointer/key event.
  */
 
 const AMBIENT_VOL = 0.26;
@@ -9,10 +12,12 @@ const RAIN_VOL    = 0.16;
 const AM = {
   ambientMuted: false,
   sfxMuted:     false,
+  _started:     false,   // have we kicked off ambient yet?
 
   init(scene) {
     if (window._AM_ambientMuted !== undefined) this.ambientMuted = window._AM_ambientMuted;
     if (window._AM_sfxMuted     !== undefined) this.sfxMuted     = window._AM_sfxMuted;
+    if (window._AM_started      !== undefined) this._started     = window._AM_started;
     window._AM       = this;
     window._bgMuted  = this.ambientMuted;
     window._sfxMuted = this.sfxMuted;
@@ -21,38 +26,62 @@ const AM = {
   _persist() {
     window._AM_ambientMuted = this.ambientMuted;
     window._AM_sfxMuted     = this.sfxMuted;
+    window._AM_started      = this._started;
     window._bgMuted  = this.ambientMuted;
     window._sfxMuted = this.sfxMuted;
   },
 
-  // ── Ambient: music + rain ──────────────────────────────────
+  // ── Ambient ────────────────────────────────────────────────
 
-  startAmbient(scene) {
-    this._startTrack(scene, 'menu_music', AMBIENT_VOL, 2200);
-    this._startTrack(scene, 'rain',       RAIN_VOL,    1800);
-    // DO NOT call applyAmbientVolume here — it races with the fade tweens above.
-    // The muted check is already inside _startTrack.
+  // Call this from MainMenuScene — hooks first-interaction unlock
+  startAmbientWhenReady(scene) {
+    if (this._started) {
+      // Already unlocked in a previous scene — just ensure playing
+      this._startTrack(scene, 'menu_music', AMBIENT_VOL, 1200);
+      this._startTrack(scene, 'rain',       RAIN_VOL,    1000);
+      return;
+    }
+
+    // Show a subtle "tap to start" pulse on the screen,
+    // then start audio on first ANY input event
+    const unlock = () => {
+      // Remove listeners immediately
+      scene.input.off('pointerdown', unlock);
+      try { scene.input.keyboard.off('keydown', unlock); } catch(e) {}
+
+      this._started = true;
+      this._persist();
+
+      this._startTrack(scene, 'menu_music', AMBIENT_VOL, 2000);
+      this._startTrack(scene, 'rain',       RAIN_VOL,    1600);
+    };
+
+    // Attach to first user interaction
+    scene.input.once('pointerdown', unlock);
+    try { scene.input.keyboard.once('keydown', unlock); } catch(e) {}
+
+    // Also try immediately — if audio context already unlocked (e.g. after intro click)
+    scene.time.delayedCall(200, () => {
+      try {
+        const ctx = scene.sound.context;
+        if (ctx && ctx.state === 'running' && !this._started) {
+          unlock();
+        }
+      } catch(e) {}
+    });
   },
 
   _startTrack(scene, key, targetVol, fadeDur) {
     try {
-      // Kill any leftover tweens on this sound to avoid races
       let snd = scene.sound.get(key);
-
       if (!snd) {
-        // Sound instance doesn't exist yet — add it
         snd = scene.sound.add(key, { loop: true, volume: 0 });
       }
-
-      // Stop cleanly if it was in a weird state
       if (snd.isPaused) snd.resume();
-
       if (!snd.isPlaying) {
         snd.setVolume(0);
         snd.play();
       }
-
-      // Tween to target vol only if not muted
       const target = this.ambientMuted ? 0 : targetVol;
       scene.tweens.killTweensOf(snd);
       scene.tweens.add({ targets: snd, volume: target, duration: fadeDur });
@@ -87,8 +116,8 @@ const AM = {
   },
 
   raiseAmbient(scene, fadeDur = 800) {
-    const targets = { 'menu_music': AMBIENT_VOL, 'rain': RAIN_VOL };
-    Object.entries(targets).forEach(([key, vol]) => {
+    const vols = { 'menu_music': AMBIENT_VOL, 'rain': RAIN_VOL };
+    Object.entries(vols).forEach(([key, vol]) => {
       try {
         const snd = scene.sound.get(key);
         if (!snd) return;
@@ -140,7 +169,14 @@ const AM = {
   toggleAmbient(scene) {
     this.ambientMuted = !this.ambientMuted;
     this._persist();
-    this.applyAmbientVolume(scene, 220);
+    if (!this.ambientMuted && !this._started) {
+      // User unmuted before audio was started — start now
+      this._started = true;
+      this._startTrack(scene, 'menu_music', AMBIENT_VOL, 800);
+      this._startTrack(scene, 'rain',       RAIN_VOL,    800);
+    } else {
+      this.applyAmbientVolume(scene, 220);
+    }
     return this.ambientMuted;
   },
 
@@ -151,9 +187,7 @@ const AM = {
     return this.sfxMuted;
   },
 
-  // Call at scene create() after init() — restores volumes without re-starting tracks
   sync(scene) {
-    // Re-apply volumes only — don't restart sounds
     this.applyAmbientVolume(scene, 0);
     this.applySfxVolume(scene);
   },
@@ -162,6 +196,7 @@ const AM = {
 if (window._AM) {
   AM.ambientMuted = window._AM.ambientMuted;
   AM.sfxMuted     = window._AM.sfxMuted;
+  AM._started     = window._AM._started || false;
 }
 
 export default AM;

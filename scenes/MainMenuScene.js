@@ -43,27 +43,18 @@ export default class MainMenuScene extends Phaser.Scene {
       alpha: 0.35 + Math.random() * 0.45,
     }));
 
-    // ── Thief icon ────────────────────────────────────────────
-    const iconY = 118;
-    const thief = this.add.image(cx, iconY, 'thief_idle_src')
-      .setScale(0.07).setDepth(7).setAlpha(0.92);
-    this.tweens.add({
-      targets: thief, y: iconY - 6,
-      duration: 1900, ease: 'Sine.easeInOut', yoyo: true, repeat: -1
-    });
-
     // ── Title ─────────────────────────────────────────────────
     const titleY = 194;
 
     // Drop shadow
     this.add.text(cx + 4, titleY + 4, 'TINY THIEF', {
-      fontFamily: '"Courier New", monospace',
+      fontFamily: 'Impact, "Arial Black", Arial, sans-serif',
       fontSize: '76px', color: '#000000', stroke: '#000000', strokeThickness: 12,
     }).setOrigin(0.5).setDepth(6).setAlpha(0.55);
 
     // Outer glow
     this.add.text(cx, titleY, 'TINY THIEF', {
-      fontFamily: '"Courier New", monospace',
+      fontFamily: 'Impact, "Arial Black", Arial, sans-serif',
       fontSize: '76px', color: '#00ffee',
       stroke: '#00ffee', strokeThickness: 14,
       shadow: { offsetX: 0, offsetY: 0, color: '#00ffee', blur: 48, fill: true }
@@ -71,7 +62,7 @@ export default class MainMenuScene extends Phaser.Scene {
 
     // Main title
     const title = this.add.text(cx, titleY, 'TINY THIEF', {
-      fontFamily: '"Courier New", monospace',
+      fontFamily: 'Impact, "Arial Black", Arial, sans-serif',
       fontSize: '76px', color: '#e0ffff',
       stroke: '#cc00ff', strokeThickness: 3,
       shadow: { offsetX: 0, offsetY: 0, color: '#00eeff', blur: 24, fill: true }
@@ -83,10 +74,9 @@ export default class MainMenuScene extends Phaser.Scene {
     });
 
     // Tagline
-    this.add.text(cx, titleY + 52, '— S N E A K   ·   S T E A L   ·   S U R V I V E —', {
-      fontFamily: '"Courier New", monospace',
-      fontSize: '11px', color: '#7755bb', letterSpacing: 1,
-      shadow: { offsetX: 0, offsetY: 0, color: '#aa66ff', blur: 8, fill: true }
+    this.add.text(cx, titleY + 52, 'SNEAK · STEAL · SURVIVE', {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '13px', color: '#ddccff',
     }).setOrigin(0.5).setDepth(8);
 
     // Separator
@@ -118,9 +108,9 @@ export default class MainMenuScene extends Phaser.Scene {
       let arrowTween = null;
 
       const btn = this.add.text(baseX, item.y, item.label, {
-        fontFamily: '"Courier New", monospace',
-        fontSize: '26px', color: '#9988cc',
-        stroke: '#000000', strokeThickness: 1,
+        fontFamily: 'Impact, "Arial Black", Arial, sans-serif',
+        fontSize: '26px', color: '#e0d8ff',
+        stroke: '#000000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(9).setInteractive({ useHandCursor: true });
 
       const uline = this.add.graphics().setDepth(8);
@@ -146,7 +136,7 @@ export default class MainMenuScene extends Phaser.Scene {
       });
 
       btn.on('pointerout', () => {
-        btn.setStyle({ color: '#9988cc', stroke: '#000000', strokeThickness: 1, shadow: undefined });
+        btn.setStyle({ color: '#e0d8ff', stroke: '#000000', strokeThickness: 2, shadow: undefined });
         this.tweens.add({ targets: btn, x: baseX, duration: 110, ease: 'Power2' });
         this.tweens.add({ targets: arrow, alpha: 0, x: arrowX, duration: 110 });
         if (arrowTween) { arrowTween.stop(); arrowTween = null; }
@@ -167,7 +157,7 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     // ── Auto-start ambient (music + rain fade in) ─────────────
-    AM.startAmbient(this);
+    AM.startAmbientWhenReady(this);
 
     // ── Mute buttons ─────────────────────────────────────────
     this._muteBtn = new MuteButton(this);
