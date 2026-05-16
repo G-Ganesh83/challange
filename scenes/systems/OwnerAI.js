@@ -114,8 +114,8 @@ export default class OwnerAI {
       this._alertPhaseUntil = 0;
       if (s.hidden) s.hiddenSuccessfully = true;
       s.setOwnerBreathing(false);
-      owner.setTexture('owner_alert');
-      owner.setScale(this.alertScale);
+      owner.setTexture(s.ownerAlertTexture ?? 'owner_alert');
+      owner.setScale(s.ownerAlertScale ?? this.alertScale);
       this._syncOwnerBody();
       owner.setVisible(true);
       s.tweens.killTweensOf(owner);
@@ -151,8 +151,8 @@ export default class OwnerAI {
     owner.state = 'chase';
     this._alertPhaseUntil = 0;
     s.setOwnerBreathing(false);
-    owner.setTexture('owner_alert');
-    owner.setScale(this.alertScale);
+    owner.setTexture(s.ownerAlertTexture ?? 'owner_alert');
+    owner.setScale(s.ownerAlertScale ?? this.alertScale);
     this._syncOwnerBody();
     owner.setVisible(true);
     s.tweens.killTweensOf(owner);
@@ -223,8 +223,8 @@ export default class OwnerAI {
     if (s.hidden) { owner.setVelocity(0, 0); return; }
 
     s.setOwnerBreathing(false);
-    owner.setTexture('owner_alert');
-    owner.setScale(this.alertScale);
+    owner.setTexture(s.ownerAlertTexture ?? 'owner_alert');
+    owner.setScale(s.ownerAlertScale ?? this.alertScale);
     owner.body.enable = true;
     owner.body.moves = true;
 

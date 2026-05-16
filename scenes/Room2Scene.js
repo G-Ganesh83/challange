@@ -63,6 +63,7 @@ export default class Room2Scene extends Phaser.Scene {
     // Room 2 exclusive assets
     safeImg('r2_bg',        'assets/room2/bg.png');
     safeImg('r2_owner_src', 'assets/room2/owner2.png');
+    safeImg('r2_owner_idle_src', 'assets/characters/Owner2_idle.png');
     safeImg('r2_cpdesk',    'assets/room2/furniture/cpDesk.png');
     safeImg('r2_chair',     'assets/room2/furniture/chair.png');
     safeImg('r2_gmgtable',  'assets/room2/furniture/gmgtable.png');
@@ -168,12 +169,12 @@ export default class Room2Scene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     this.owner.setVelocity(0, 0);
     this.timerSystem.start(120);
-    this.updatePrompt('New apartment. Stay quiet.');
+    this.updatePrompt('Stay quiet. This owner sleeps lightly.');
 
     this.cameras.main.fadeIn(850, 0, 0, 0);
     this.time.delayedCall(760, () => {
       this.roomIntroActive = false;
-      this.updatePrompt('New apartment. Stay quiet.', 'info');
+      this.updatePrompt('Stay quiet. This owner sleeps lightly.', 'info');
     });
   }
 
@@ -196,12 +197,9 @@ export default class Room2Scene extends Phaser.Scene {
     pairs.forEach(([src, tgt]) => {
       if (!this.textures.exists(tgt)) this._cropTex(src, tgt);
     });
-    // Owner alert (reuse from Room 1 if exists, otherwise use r2_owner)
-    if (!this.textures.exists('owner_alert')) {
-      this._cropTex('r2_owner_src', 'owner_alert', { keyColorTrim: true, keyColorTolerance: 18 });
-    }
-    // Room 2 owner sleep texture
+    // Room 2 owner textures
     this._cropTex('r2_owner_src', 'r2_owner_sleep', { keyColorTrim: true, keyColorTolerance: 18 });
+    this._cropTex('r2_owner_idle_src', 'r2_owner_idle', { keyColorTrim: true, keyColorTolerance: 18 });
     // Room 2 furniture
     const furniturePairs = [
       ['r2_cpdesk','r2t_cpdesk'],['r2_chair','r2t_chair'],
@@ -296,9 +294,7 @@ export default class Room2Scene extends Phaser.Scene {
     this.wallColliders = [];
     this.roomWalls = this.physics.add.staticGroup();
     const addWall = (x,y,w2,h2) => {
-      const alpha = this.debugWallsEnabled ? 0.22 : 0;
-      const wall = this.add.rectangle(x,y,w2,h2,0xff3b3b,alpha).setDepth(2);
-      if (this.debugWallsEnabled) wall.setStrokeStyle(2,0xffffff,0.35);
+      const wall = this.add.rectangle(x,y,w2,h2,0xff3b3b,0).setDepth(2);
       this.physics.add.existing(wall, true);
       wall.body.setSize(w2,h2); wall.body.updateFromGameObject();
       this.roomWalls.add(wall); this.wallColliders.push(wall); return wall;
@@ -334,28 +330,11 @@ export default class Room2Scene extends Phaser.Scene {
     this.plant1 = this.add.image(100, 520, 'r2t_plant1').setScale(0.18).setDepth(21);
     this.plant2 = this.add.image(650, 130, 'r2t_plant2').setScale(0.18).setDepth(21);
 
-    // ── FURNITURE FOOTPRINTS ─────────────────────────────────
-    // Gaming desk — blocks front-bottom edge
-    { const sp = this.cpDesk, sw = sp.displayWidth, sh = sp.displayHeight;
-      this.furnitureSystem.add('cpDesk', 180, 200, sw*0.40, 16); }
-    // Gaming chair — small base footprint
-    this.furnitureSystem.add('chair',  380,240, 40, 20);
-    // GMG table — blocks bottom edge
-    { const sp = this.gmgTable, sw = sp.displayWidth, sh = sp.displayHeight;
-      this.furnitureSystem.add('shelf', sp.x, 480, 55, 40); }
-    // Wardrobe — NO footprint: it's the safe zone, player must walk in freely
-    // Sofa — front edge blocker
-    { const sp = this.sofa, sw = sp.displayWidth, sh = sp.displayHeight;
-      this.furnitureSystem.add('sofa', sp.x, 450 , 16, sw*0.5); }
-    // Bag/side-table
-    this.furnitureSystem.add('bag', 640,320, 60, 30);
-    // Plants — tiny collision circles
-    this.furnitureSystem.addFromSprite('plant1', this.plant1, 0.16, 0.50);
-    this.furnitureSystem.addFromSprite('plant2', this.plant2, 0.16, 0.50);
+    // Room 2 furniture is visual only; no furniture collision footprints.
 
     // ── CABLE ZONE (noisy floor area) ────────────────────────
     // Mid-right as per reference — glowing cyan circle on floor
-    this.cableZonePos = { x: 140, y: 510 };
+    this.cableZonePos = { x: 140, y: 460 };
     this.cableZoneRadius = 72;
     this.cableZoneGlow = this.add.circle(
       this.cableZonePos.x, this.cableZonePos.y,
@@ -430,9 +409,9 @@ export default class Room2Scene extends Phaser.Scene {
     const s = this;
     // 5 loot items — placed in risky, hard-to-reach spots per reference
     const makeGlow = (x, y, color, r=22) =>
-      s.add.circle(x, y, r, color, 0.18).setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
+      s.add.circle(x, y, r, color, 0).setVisible(false).setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
     const makeRing = (x, y, color) =>
-      s.add.circle(x, y, 14, color, 0.08).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
+      s.add.circle(x, y, 14, color, 0).setVisible(false).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
     const makeShadow = (x, y) =>
       s.add.ellipse(x, y+10, 24, 10, 0x000000, 0.18).setDepth(16);
 
@@ -565,7 +544,9 @@ export default class Room2Scene extends Phaser.Scene {
   _createOwner() {
     // Scene-level owner texture config — used by OwnerAI.resetToSleep()
     this.ownerSleepTexture = 'r2_owner_sleep';
+    this.ownerAlertTexture = 'r2_owner_idle';
     this.ownerSleepScale   = 0.24;
+    this.ownerAlertScale   = 0.24;
 
     // Owner sleeps on sofa
     const sleepTex = this.textures.exists('r2_owner_sleep') ? 'r2_owner_sleep' : 'r2_owner_src';
@@ -989,13 +970,29 @@ export default class Room2Scene extends Phaser.Scene {
     if (this.roomCompleted) return;
     this.roomCompleted=true; this.gameOver=true;
     this.timerSystem.stop();
+    this.chaseMode=false;
+    this.hidden=false;
+    this.player.setVisible(true);
     this.player.setVelocity(0,0); this.owner.setVelocity(0,0);
+    if (this.player.body) {
+      this.player.body.enable = false;
+      this.player.body.moves = false;
+    }
+    if (this.owner.body) {
+      this.owner.body.enable = false;
+      this.owner.body.moves = false;
+    }
+    this.ownerAI?.reset?.();
+    this.tweens.killTweensOf([this.owner, this.player]);
     this.input.enabled = false;
+    if (this.input.keyboard) this.input.keyboard.enabled = false;
     this.playSfx('door_unlock', { minGap:1200, volume:0.65 });
     this.playSfx('success', { minGap:2000, delay:520 });
-    this.cameras.main.fade(1150, 0, 10, 20);
+    AM.duckAmbient(this, 0.08, 900);
+    this.cameras.main.zoomTo(1.035, 1300, 'Sine.easeInOut');
+    this.cameras.main.fadeOut(1300, 0, 8, 18);
     this.updatePrompt('Escaping...', 'success');
-    this.time.delayedCall(1250, () => this.rankSystem.showEscapeScreen());
+    this.time.delayedCall(1420, () => this.rankSystem.showEscapeScreen());
   }
 
   onCaught() {

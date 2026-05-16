@@ -8,6 +8,8 @@ export default class RankSystem {
     this.scene = scene;
     this._caughtTimers = [];
     this._caughtOverlay = null;
+    this._celebrationTimers = [];
+    this._celebrationOverlay = null;
   }
 
   calculate() {
@@ -26,7 +28,6 @@ export default class RankSystem {
 
   showEscapeScreen() {
     const s = this.scene;
-    const rank = this.calculate();
     const tLeft = Math.max(0, Math.floor(s.timerSystem.seconds));
     const mm = String(Math.floor(tLeft / 60)).padStart(2, '0');
     const ss = String(tLeft % 60).padStart(2, '0');
@@ -34,25 +35,34 @@ export default class RankSystem {
     const noiseLabel = noise < 0.3 ? 'Low 🤫' : noise < 0.8 ? 'Medium 😬' : 'HIGH 🔊';
 
     const el = document.getElementById('end-screen');
-    document.getElementById('end-eyebrow').textContent = '— ESCAPED —';
+    el.classList.add('final-win');
+    document.getElementById('end-eyebrow').textContent = 'NIGHT CLEARED';
     const rankEl = document.getElementById('end-rank');
-    rankEl.textContent = rank.title;
-    rankEl.style.color = rank.color;
-    document.getElementById('end-subtitle').textContent = 'You survived the heist.';
+    rankEl.textContent = 'HEIST COMPLETE';
+    rankEl.style.color = '#f7fbff';
+    document.getElementById('end-subtitle').textContent = 'Thanks for playing Tiny Thief ❤️';
     document.getElementById('end-stats').innerHTML = `
-      <div>⏱ Time Left: ${mm}:${ss}</div>
-      <div>🔊 Noise: ${noiseLabel}</div>
-      <div>${s.chaseModeHappened ? '⚠️ Chase: YES' : '✅ Chase: NEVER'}</div>
-      <div>${s.timerSystem.panicTriggered ? '🚨 Timed Out' : '🎯 Escaped in Time'}</div>
+      <div class="final-message">I explored a completely new side of building games while creating this project.</div>
+      <div class="final-message">I gave my full effort to make this small stealth experience fun and visually memorable.</div>
+      <div class="final-message">Hope you enjoyed the cozy neon atmosphere and gameplay.</div>
+      <div class="final-human">Sorry if you encountered any bugs or rough edges. This project was built with passion, experimentation and lots of learning.</div>
+      <div class="final-support">Support the project in the #100_cans challenge ❤️</div>
+      <div class="final-mini">Time Left: ${mm}:${ss} · Noise: ${noiseLabel}</div>
     `;
+    const retry = document.getElementById('end-replay-btn');
+    const menu = document.getElementById('end-menu-btn');
+    if (retry) retry.textContent = 'PLAY AGAIN';
+    if (menu) menu.textContent = 'RETURN TO MENU';
     el.classList.remove('hidden');
     this._wireButtons(el);
+    this._startFinalCelebration(el);
   }
 
   showBustedScreen() {
     this._removeCaughtOverlay();
     const s = this.scene;
     const el = document.getElementById('end-screen');
+    el.classList.remove('final-win');
     document.getElementById('end-eyebrow').textContent = '— NIGHT FAILED —';
     const rankEl = document.getElementById('end-rank');
     rankEl.textContent = 'CAUGHT';
@@ -109,19 +119,29 @@ export default class RankSystem {
     const menu = document.getElementById('end-menu-btn');
     if (retry) retry.onclick = () => {
       el.classList.add('hidden');
+      el.classList.remove('final-win');
+      this._removeFinalCelebration();
       this._removeCaughtOverlay();
       AM.raiseAmbient(s, 450);
       this._cleanupActiveScene();
-      const key = s.sys.settings.key;
-      const SceneClass = s.constructor;
+      const isFinalWin = document.getElementById('end-rank')?.textContent === 'HEIST COMPLETE';
       window.setTimeout(() => {
-        s.game.scene.stop(key);
-        s.game.scene.remove(key);
-        s.game.scene.add(key, new SceneClass(), true);
+        if (isFinalWin) {
+          s.game.scene.stop(s.sys.settings.key);
+          s.game.scene.start('GameScene');
+        } else {
+          const key = s.sys.settings.key;
+          const SceneClass = s.constructor;
+          s.game.scene.stop(key);
+          s.game.scene.remove(key);
+          s.game.scene.add(key, new SceneClass(), true);
+        }
       }, 0);
     };
     if (menu) menu.onclick = () => {
       el.classList.add('hidden');
+      el.classList.remove('final-win');
+      this._removeFinalCelebration();
       this._removeCaughtOverlay();
       AM.raiseAmbient(s, 450);
       this._cleanupActiveScene();
@@ -140,6 +160,7 @@ export default class RankSystem {
 
   _cleanupActiveScene() {
     const s = this.scene;
+    this._removeFinalCelebration();
     this._removeCaughtOverlay();
     try { s.physics?.world?.resume(); } catch(e) {}
     try { s.input.enabled = true; } catch(e) {}
@@ -153,5 +174,110 @@ export default class RankSystem {
     this._caughtTimers = [];
     this._caughtOverlay?.remove();
     this._caughtOverlay = null;
+  }
+
+  _startFinalCelebration(el) {
+    this._removeFinalCelebration();
+    const actions = el.querySelector('.end-actions');
+    actions?.classList.remove('ready');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'final-confetti-layer';
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(overlay);
+    this._celebrationOverlay = overlay;
+
+    this._celebrationTimers.push(window.setTimeout(() => {
+      this._playSoftPartyPop();
+      this._spawnConfetti(overlay, 34);
+      el.querySelector('.end-rank')?.classList.add('celebrate');
+    }, 620));
+
+    this._celebrationTimers.push(window.setTimeout(() => {
+      this._spawnConfetti(overlay, 18);
+    }, 1450));
+
+    this._celebrationTimers.push(window.setTimeout(() => {
+      actions?.classList.add('ready');
+    }, 1850));
+
+    this._celebrationTimers.push(window.setTimeout(() => {
+      overlay.classList.add('settle');
+    }, 6200));
+  }
+
+  _spawnConfetti(overlay, count) {
+    const colors = ['#65eaff', '#b866ff', '#ff74b8', '#ffe077', '#8bbcff'];
+    for (let i = 0; i < count; i++) {
+      const piece = document.createElement('span');
+      piece.className = 'final-confetti';
+      const x = 18 + Math.random() * 64;
+      const delay = Math.random() * 0.42;
+      const drift = `${Math.round((Math.random() - 0.5) * 220)}px`;
+      const rotate = `${Math.round(220 + Math.random() * 420)}deg`;
+      piece.style.left = `${x}%`;
+      piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.animationDelay = `${delay}s`;
+      piece.style.setProperty('--drift', drift);
+      piece.style.setProperty('--spin', rotate);
+      piece.style.setProperty('--fall', `${4.2 + Math.random() * 1.8}s`);
+      piece.style.width = `${5 + Math.random() * 5}px`;
+      piece.style.height = `${8 + Math.random() * 7}px`;
+      overlay.appendChild(piece);
+      window.setTimeout(() => piece.remove(), 7000);
+    }
+  }
+
+  _playSoftPartyPop() {
+    if (AM.sfxMuted) return;
+    const s = this.scene;
+    const ctx = s.sound?.context;
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.0001, now);
+      master.gain.exponentialRampToValueAtTime(0.10, now + 0.025);
+      master.gain.exponentialRampToValueAtTime(0.0001, now + 0.34);
+      master.connect(ctx.destination);
+
+      const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.22), ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2.2);
+      }
+      const noise = ctx.createBufferSource();
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1700, now);
+      filter.Q.setValueAtTime(0.8, now);
+      noise.buffer = buffer;
+      noise.connect(filter);
+      filter.connect(master);
+      noise.start(now);
+
+      [523.25, 659.25].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + 0.08 + idx * 0.055);
+        gain.gain.setValueAtTime(0.0001, now + 0.08 + idx * 0.055);
+        gain.gain.exponentialRampToValueAtTime(0.045, now + 0.11 + idx * 0.055);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42 + idx * 0.07);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + 0.08 + idx * 0.055);
+        osc.stop(now + 0.48 + idx * 0.07);
+      });
+    } catch(e) {}
+  }
+
+  _removeFinalCelebration() {
+    this._celebrationTimers.forEach((id) => window.clearTimeout(id));
+    this._celebrationTimers = [];
+    this._celebrationOverlay?.remove();
+    this._celebrationOverlay = null;
+    document.getElementById('end-rank')?.classList.remove('celebrate');
+    document.querySelector('#end-screen .end-actions')?.classList.remove('ready');
   }
 }

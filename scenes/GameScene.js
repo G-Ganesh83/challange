@@ -720,6 +720,7 @@ export default class GameScene extends Phaser.Scene {
       this.tweens.add({ targets:this.exitLabel, scale:1.12, alpha:0.92, duration:260, yoyo:true, ease:'Sine.inOut' });
     }
     AM.duckAmbient(this, 0.08, 900);
+    this.cameras.main.zoomTo(1.035, 1250, 'Sine.easeInOut');
     this.cameras.main.fadeOut(1250,6,4,10);
     this.time.delayedCall(1380, () => {
       this.cleanupSceneState();
@@ -727,7 +728,8 @@ export default class GameScene extends Phaser.Scene {
         nextScene: 'Room2Scene',
         night: 2,
         lootCount: this.lootSystem.collectedCount || 0,
-        subtitle: 'Gaming Apartment'
+        subtitle: 'Gaming Apartment',
+        durationMs: 12000
       });
     });
   }

@@ -36,7 +36,7 @@ export default class FurnitureSystem {
 
   /** Call once in scene create(), before adding any footprints. */
   init() {
-    this.debug = true;
+    this.debug = this.scene.debugWallsEnabled || false;
     this.group = this.scene.physics.add.staticGroup();
     if (this.debug) {
       this._gfx = this.scene.add.graphics().setDepth(200);
