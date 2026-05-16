@@ -9,6 +9,13 @@ export default class MainMenuScene extends Phaser.Scene {
     const W = 960, H = 640;
     const cx = W / 2;
 
+    this.input.enabled = true;
+    this.cameras.main.resetFX();
+    document.body.classList.remove('hud-visible');
+    document.body.classList.add('hud-hidden');
+    document.getElementById('end-screen')?.classList.add('hidden');
+    document.getElementById('message-toast')?.classList.add('hidden');
+
     this.cameras.main.setBackgroundColor('#03020a');
 
     // ── Init audio manager ────────────────────────────────────

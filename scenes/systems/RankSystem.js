@@ -67,13 +67,36 @@ export default class RankSystem {
     const menu = document.getElementById('end-menu-btn');
     if (retry) retry.onclick = () => {
       el.classList.add('hidden');
-      s.scene.restart();
+      this._cleanupActiveScene();
+      const key = s.sys.settings.key;
+      const SceneClass = s.constructor;
+      window.setTimeout(() => {
+        s.game.scene.stop(key);
+        s.game.scene.remove(key);
+        s.game.scene.add(key, new SceneClass(), true);
+      }, 0);
     };
     if (menu) menu.onclick = () => {
       el.classList.add('hidden');
+      this._cleanupActiveScene();
       document.body.classList.remove('hud-visible');
       document.body.classList.add('hud-hidden');
-      s.scene.start('MainMenuScene');
+      const key = s.sys.settings.key;
+      const SceneClass = s.constructor;
+      window.setTimeout(() => {
+        s.game.scene.stop(key);
+        s.game.scene.remove(key);
+        s.game.scene.add(key, new SceneClass(), false);
+        s.game.scene.start('MainMenuScene');
+      }, 0);
     };
+  }
+
+  _cleanupActiveScene() {
+    const s = this.scene;
+    try { s.physics?.world?.resume(); } catch(e) {}
+    try { s.input.enabled = true; } catch(e) {}
+    try { s.cameras?.main?.resetFX(); } catch(e) {}
+    try { document.getElementById('message-toast')?.classList.add('hidden'); } catch(e) {}
   }
 }

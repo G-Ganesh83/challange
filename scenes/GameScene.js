@@ -105,6 +105,7 @@ export default class GameScene extends Phaser.Scene {
     this.rankSystem       = new RankSystem(this);
     this.furnitureSystem  = new FurnitureSystem(this);
     this.furnitureSystem.init();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.cleanupSceneState());
 
     this.createTextures();
     this.createRoom();
@@ -114,8 +115,18 @@ export default class GameScene extends Phaser.Scene {
     this.bindInput();
     this.createAudio();
     this.setupPolish();
+    this.physics.world.resume();
+    this.input.enabled = true;
     this.timerSystem.start();
     this.updatePrompt('Sneak. The room is weirdly cozy.');
+  }
+
+  cleanupSceneState() {
+    window.clearTimeout(this.promptResetTimer);
+    window.clearTimeout(this.toastTimer);
+    try { this.physics?.world?.resume(); } catch(e) {}
+    try { this.input.keyboard?.removeAllListeners(); } catch(e) {}
+    try { this.events?.removeAllListeners('update'); } catch(e) {}
   }
 
   /* ──────────────────── TEXTURE PIPELINE ───────────────────── */
@@ -304,6 +315,7 @@ export default class GameScene extends Phaser.Scene {
     this.player.setScale(this.playerDisplayScale).setDepth(30).setCollideWorldBounds(true);
     this.physics.add.collider(this.player, this.wallColliders ?? this.roomWalls, this.onPlayerWallContact, null, this);
     this.furnitureSystem.wirePlayer(this.player);
+    this.resetPlayerToStart();
   }
 
   /* ─────────────────────── OWNER ───────────────────────────── */
@@ -317,6 +329,28 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.owner, this.safeZoneBlock);
     this.physics.add.overlap(this.player, this.owner, () => this.onCaught());
     this.furnitureSystem.wireOwner(this.owner);
+    this.resetOwnerToStart();
+  }
+
+  resetPlayerToStart() {
+    if (!this.player) return;
+    this.player.body?.reset(480, 520);
+    this.player.setPosition(480, 520);
+    this.player.setVelocity(0, 0);
+    this.player.setTexture('thief_idle').setVisible(true).setAlpha(1).setFlipX(false);
+    this.player.body.enable = true;
+    this.currentPlayerTexture = 'thief_idle';
+  }
+
+  resetOwnerToStart() {
+    if (!this.owner) return;
+    this.owner.body?.reset(744, 210);
+    this.owner.setPosition(744, 210);
+    this.owner.setVelocity(0, 0);
+    this.owner.state = 'sleeping';
+    this.owner.setTexture('owner_sleep').setScale(0.25).setVisible(true).setAlpha(1);
+    this.chaseMode = false;
+    this.catchContactMs = 0;
   }
 
   /* ─────────────────────── UI ───────────────────────────────── */
@@ -642,6 +676,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     if (this.hidden) return;
     if (!this.isOwnerCatchActive()) return;
+    if (this.isPlayerInSafeZone()) return;
     this.gameOver = true;
     this.timerSystem.stop();
     this.input.enabled = false;
@@ -662,6 +697,10 @@ export default class GameScene extends Phaser.Scene {
 
   updateCatchContact(delta) {
     if (this.gameOver || this.hidden || !this.isOwnerCatchActive() || !this.player?.body || !this.owner?.body) {
+      this.catchContactMs = 0;
+      return;
+    }
+    if (this.isPlayerInSafeZone()) {
       this.catchContactMs = 0;
       return;
     }

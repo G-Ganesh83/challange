@@ -129,6 +129,7 @@ export default class Room2Scene extends Phaser.Scene {
     this.rankSystem      = new RankSystem(this);
     this.furnitureSystem = new FurnitureSystem(this);
     this.furnitureSystem.init();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this._cleanupSceneState());
 
     this._prepareTextures();
     this._createRoom();
@@ -139,6 +140,8 @@ export default class Room2Scene extends Phaser.Scene {
     this._bindInput();
     this._createAudio();
     this._setupPolish();
+    this.physics.world.resume();
+    this.input.enabled = true;
 
     // Owner AI — harder config for Room 2
     this.ownerAI = new OwnerAI(this, {
@@ -161,6 +164,14 @@ export default class Room2Scene extends Phaser.Scene {
 
     // Brief flash-in for dramatic effect
     this.time.delayedCall(80, () => this.cameras.main.flash(160, 0, 20, 40));
+  }
+
+  _cleanupSceneState() {
+    window.clearTimeout(this.promptResetTimer);
+    window.clearTimeout(this.toastTimer);
+    try { this.physics?.world?.resume(); } catch(e) {}
+    try { this.input.keyboard?.removeAllListeners(); } catch(e) {}
+    try { this.events?.removeAllListeners('update'); } catch(e) {}
   }
 
   /* ──────────────────── TEXTURE PIPELINE ───────────────────── */
@@ -536,6 +547,7 @@ export default class Room2Scene extends Phaser.Scene {
     this.player.setScale(this.playerDisplayScale).setDepth(30).setCollideWorldBounds(true);
     this.physics.add.collider(this.player, this.wallColliders ?? this.roomWalls, this._onPlayerWallContact, null, this);
     this.furnitureSystem.wirePlayer(this.player);
+    this._resetPlayerToStart();
   }
 
   /* ─────────────────────── OWNER ───────────────────────────── */
@@ -556,6 +568,29 @@ export default class Room2Scene extends Phaser.Scene {
     this.physics.add.collider(this.owner, this.safeZoneBlock);
     this.physics.add.overlap(this.player, this.owner, () => this.onCaught(), null, this);
     this.furnitureSystem.wireOwner(this.owner);
+    this._resetOwnerToStart();
+  }
+
+  _resetPlayerToStart() {
+    if (!this.player) return;
+    this.player.body?.reset(480, 530);
+    this.player.setPosition(480, 530);
+    this.player.setVelocity(0, 0);
+    this.player.setTexture('thief_idle').setVisible(true).setAlpha(1).setFlipX(false);
+    this.player.body.enable = true;
+    this.currentPlayerTexture = 'thief_idle';
+  }
+
+  _resetOwnerToStart() {
+    if (!this.owner) return;
+    const sleepTex = this.textures.exists('r2_owner_sleep') ? 'r2_owner_sleep' : 'r2_owner_src';
+    this.owner.body?.reset(820, 470);
+    this.owner.setPosition(820, 470);
+    this.owner.setVelocity(0, 0);
+    this.owner.state = 'sleeping';
+    this.owner.setTexture(sleepTex).setScale(0.24).setVisible(true).setAlpha(1);
+    this.chaseMode = false;
+    this.catchContactMs = 0;
   }
 
   /* ─────────────────────── UI ──────────────────────────────── */
@@ -923,6 +958,7 @@ export default class Room2Scene extends Phaser.Scene {
     if (this.gameOver) return;
     if (this.hidden) return;
     if (!this._isOwnerCatchActive()) return;
+    if (this.isPlayerInSafeZone()) return;
     this.gameOver = true;
     this.timerSystem.stop();
     this.input.enabled = false;
@@ -943,6 +979,10 @@ export default class Room2Scene extends Phaser.Scene {
 
   _updateCatchContact(delta) {
     if (this.gameOver || this.hidden || !this._isOwnerCatchActive() || !this.player?.body || !this.owner?.body) {
+      this.catchContactMs = 0;
+      return;
+    }
+    if (this.isPlayerInSafeZone()) {
       this.catchContactMs = 0;
       return;
     }
