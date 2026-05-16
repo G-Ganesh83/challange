@@ -1,5 +1,4 @@
 // MissionScene — cinematic HOW TO PLAY briefing screen
-import MuteButton from './systems/MuteButton.js';
 import AM         from './systems/AudioManager.js';
 
 export default class MissionScene extends Phaser.Scene {
@@ -38,9 +37,7 @@ export default class MissionScene extends Phaser.Scene {
     AM.init(this);
     AM.sync(this);
     AM.raiseAmbient(this, 600);
-
-    this._muteBtn = new MuteButton(this);
-    this.time.delayedCall(80, () => this._muteBtn.sync());
+    this._buildDomAudioControls();
 
     // ── Input ─────────────────────────────────────────────────
     this._ready = false;
@@ -51,8 +48,8 @@ export default class MissionScene extends Phaser.Scene {
       this._startHeist();
     });
 
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this._removeDomBriefing());
-    this.events.once(Phaser.Scenes.Events.DESTROY, () => this._removeDomBriefing());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this._cleanupDomOverlays());
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => this._cleanupDomOverlays());
 
     // ── Fade in ───────────────────────────────────────────────
     this.cameras.main.fadeIn(600, 0, 0, 0);
@@ -150,6 +147,55 @@ export default class MissionScene extends Phaser.Scene {
     document.body.appendChild(overlay);
   }
 
+  _buildDomAudioControls() {
+    this._removeDomAudioControls();
+
+    const controls = document.createElement('div');
+    controls.className = 'mission-audio-controls';
+    controls.innerHTML = `
+      <button class="mission-audio-btn" type="button" data-audio="ambient" aria-label="Toggle ambient audio">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 9v6h4l5 4V5L8 9H4Z"></path>
+          <path class="wave" d="M16 8.5a5 5 0 0 1 0 7"></path>
+          <path class="wave" d="M18.5 6a8.5 8.5 0 0 1 0 12"></path>
+          <path class="mute" d="M5 5l14 14"></path>
+        </svg>
+      </button>
+      <button class="mission-audio-btn sfx" type="button" data-audio="sfx" aria-label="Toggle sound effects">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 10v4"></path>
+          <path d="M9 7v10"></path>
+          <path d="M13 4v16"></path>
+          <path d="M17 8v8"></path>
+          <path d="M21 11v2"></path>
+          <path class="mute" d="M5 5l14 14"></path>
+        </svg>
+      </button>
+    `;
+
+    this._audioControls = controls;
+    this._audioHandlers = [];
+
+    const sync = () => {
+      controls.querySelector('[data-audio="ambient"]')?.classList.toggle('muted', AM.ambientMuted);
+      controls.querySelector('[data-audio="sfx"]')?.classList.toggle('muted', AM.sfxMuted);
+    };
+
+    controls.querySelectorAll('button').forEach((button) => {
+      const handler = (event) => {
+        event.stopPropagation();
+        if (button.dataset.audio === 'ambient') AM.toggleAmbient(this);
+        if (button.dataset.audio === 'sfx') AM.toggleSfx(this);
+        sync();
+      };
+      button.addEventListener('click', handler);
+      this._audioHandlers.push([button, handler]);
+    });
+
+    document.body.appendChild(controls);
+    sync();
+  }
+
   _removeDomBriefing() {
     if (this._missionStartButton && this._missionStartHandler) {
       this._missionStartButton.removeEventListener('click', this._missionStartHandler);
@@ -158,6 +204,18 @@ export default class MissionScene extends Phaser.Scene {
     this._missionOverlay = null;
     this._missionStartButton = null;
     this._missionStartHandler = null;
+  }
+
+  _removeDomAudioControls() {
+    this._audioHandlers?.forEach(([button, handler]) => button.removeEventListener('click', handler));
+    this._audioControls?.remove();
+    this._audioHandlers = null;
+    this._audioControls = null;
+  }
+
+  _cleanupDomOverlays() {
+    this._removeDomBriefing();
+    this._removeDomAudioControls();
   }
 
   _makeRainDrop(W, H, randomY = false) {
@@ -316,11 +374,12 @@ export default class MissionScene extends Phaser.Scene {
     if (this._ready) return;
     this._ready = true;
     this._missionOverlay?.classList.add('leaving');
+    this._audioControls?.classList.add('leaving');
     AM.playSfx(this, 'door_unlock', { volume: 0.6 });
     this.time.delayedCall(300, () => {
       this.cameras.main.fadeOut(700, 0, 0, 0);
       this.cameras.main.once('camerafadeoutcomplete', () => {
-        this._removeDomBriefing();
+        this._cleanupDomOverlays();
         this.scene.start('GameScene');
       });
     });

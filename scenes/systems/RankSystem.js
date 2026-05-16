@@ -1,9 +1,13 @@
+import AM from './AudioManager.js';
+
 /**
  * RankSystem — calculates stealth rank and renders end screens.
  */
 export default class RankSystem {
   constructor(scene) {
     this.scene = scene;
+    this._caughtTimers = [];
+    this._caughtOverlay = null;
   }
 
   calculate() {
@@ -46,6 +50,7 @@ export default class RankSystem {
   }
 
   showBustedScreen() {
+    this._removeCaughtOverlay();
     const s = this.scene;
     const el = document.getElementById('end-screen');
     document.getElementById('end-eyebrow').textContent = '— NIGHT FAILED —';
@@ -61,12 +66,51 @@ export default class RankSystem {
     this._wireButtons(el);
   }
 
+  showCaughtSequence() {
+    const s = this.scene;
+    this._removeCaughtOverlay();
+    AM.duckAmbient(s, 0.075, 700);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'caught-cinematic';
+    overlay.innerHTML = `
+      <div class="caught-red"></div>
+      <div class="caught-center">
+        <div class="caught-title">BUSTED</div>
+        <div class="caught-count">3</div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    this._caughtOverlay = overlay;
+
+    const countEl = overlay.querySelector('.caught-count');
+    const setCount = (value) => {
+      countEl.textContent = value;
+      countEl.classList.remove('pulse');
+      void countEl.offsetWidth;
+      countEl.classList.add('pulse');
+    };
+
+    [2, 1, 0].forEach((value, index) => {
+      this._caughtTimers.push(window.setTimeout(() => setCount(value), 760 * (index + 1)));
+    });
+
+    this._caughtTimers.push(window.setTimeout(() => {
+      overlay.classList.add('done');
+      this._caughtTimers.push(window.setTimeout(() => {
+        this.showBustedScreen();
+      }, 360));
+    }, 3040));
+  }
+
   _wireButtons(el) {
     const s = this.scene;
     const retry = document.getElementById('end-replay-btn');
     const menu = document.getElementById('end-menu-btn');
     if (retry) retry.onclick = () => {
       el.classList.add('hidden');
+      this._removeCaughtOverlay();
+      AM.raiseAmbient(s, 450);
       this._cleanupActiveScene();
       const key = s.sys.settings.key;
       const SceneClass = s.constructor;
@@ -78,6 +122,8 @@ export default class RankSystem {
     };
     if (menu) menu.onclick = () => {
       el.classList.add('hidden');
+      this._removeCaughtOverlay();
+      AM.raiseAmbient(s, 450);
       this._cleanupActiveScene();
       document.body.classList.remove('hud-visible');
       document.body.classList.add('hud-hidden');
@@ -94,9 +140,18 @@ export default class RankSystem {
 
   _cleanupActiveScene() {
     const s = this.scene;
+    this._removeCaughtOverlay();
     try { s.physics?.world?.resume(); } catch(e) {}
     try { s.input.enabled = true; } catch(e) {}
     try { s.cameras?.main?.resetFX(); } catch(e) {}
+    try { s.cameras?.main?.setZoom(1); } catch(e) {}
     try { document.getElementById('message-toast')?.classList.add('hidden'); } catch(e) {}
+  }
+
+  _removeCaughtOverlay() {
+    this._caughtTimers.forEach((id) => window.clearTimeout(id));
+    this._caughtTimers = [];
+    this._caughtOverlay?.remove();
+    this._caughtOverlay = null;
   }
 }

@@ -683,16 +683,13 @@ export default class GameScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     this.owner.setVelocity(0, 0);
     this.player.body.enable = false;
+    if (this.owner.body) this.owner.body.enable = false;
     this.updatePrompt('CAUGHT', 'danger');
-    this.playSfx('fahh', { volume: 1.0, rate: 0.78, detune: -320 });
-    this.playSfx('coreTransition', { volume: 0.65, delay: 80 });
+    this.playSfx('coreTransition', { volume: 0.52, rate: 0.84, detune: -180 });
     this.physics.world.pause();
-    this.time.delayedCall(150, () => {
-      this.screenShake(170);
-      this.flashRed();
-      this.cameras.main.flash(260, 210, 0, 20);
-    });
-    this.time.delayedCall(760, () => this.rankSystem.showBustedScreen());
+    this.screenShake(90);
+    this.cameras.main.zoomTo(1.035, 1200, 'Sine.easeOut');
+    this.rankSystem.showCaughtSequence();
   }
 
   updateCatchContact(delta) {
