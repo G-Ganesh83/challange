@@ -1,4 +1,5 @@
 // MainMenuScene — rainy neon alley, thief silhouette, PLAY/SETTINGS/QUIT
+import MuteButton from './systems/MuteButton.js';
 export default class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
 
@@ -121,6 +122,9 @@ export default class MainMenuScene extends Phaser.Scene {
       this._rainSound = rain;
     } catch(e) {}
 
+    // Sync mute state to freshly-started sounds
+    this.time.delayedCall(50, () => { if (this._muteBtn) this._muteBtn.sync(); });
+
     // Occasional neon flicker
     this.time.addEvent({
       delay: Phaser.Math.Between(3000, 6000),
@@ -148,6 +152,9 @@ export default class MainMenuScene extends Phaser.Scene {
         rainGfx.lineBetween(d.x, d.y, d.x - 1, d.y + d.len);
       });
     });
+
+    // ── Mute button ──────────────────────────────────────────
+    this._muteBtn = new MuteButton(this);
 
     // ── Fade in ──────────────────────────────────────────────
     this.cameras.main.fadeIn(600, 0, 0, 0);

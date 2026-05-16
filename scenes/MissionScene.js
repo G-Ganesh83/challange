@@ -1,4 +1,5 @@
 // MissionScene — stylish mission briefing card, SPACE to begin heist
+import MuteButton from './systems/MuteButton.js';
 export default class MissionScene extends Phaser.Scene {
   constructor() { super('MissionScene'); }
 
@@ -98,6 +99,9 @@ export default class MissionScene extends Phaser.Scene {
     if (music && music.isPlaying) {
       this.tweens.add({ targets: music, volume: 0.15, duration: 600 });
     }
+
+    // ── Mute button ──────────────────────────────────────────
+    this._muteBtn = new MuteButton(this);
 
     // ── Input ────────────────────────────────────────────────
     this._ready = false;

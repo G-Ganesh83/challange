@@ -5,6 +5,7 @@ import OwnerAI           from './systems/OwnerAI.js';
 import TimerSystem       from './systems/TimerSystem.js';
 import RankSystem        from './systems/RankSystem.js';
 import FurnitureSystem   from './systems/FurnitureSystem.js';
+import MuteButton        from './systems/MuteButton.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -330,6 +331,9 @@ export default class GameScene extends Phaser.Scene {
       safe:           this.sound.add('safe',            { volume: 0.5  }),
       success:        this.sound.add('success',         { volume: 0.85 })
     };
+
+    // Mute button — top-right corner, bg audio only
+    this._muteBtn = new MuteButton(this);
   }
 
   setupPolish() {
