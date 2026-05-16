@@ -303,8 +303,8 @@ export default class Room2Scene extends Phaser.Scene {
       wall.body.setSize(w2,h2); wall.body.updateFromGameObject();
       this.roomWalls.add(wall); this.wallColliders.push(wall); return wall;
     };
-    // Top wall — leave the center open for the exit door.
-    addWall(216,40,384,26); addWall(744,40,384,26);
+    // Top wall — matched to Room 1.
+    addWall(216,40,384,26); addWall(480,40,144,26); addWall(744,40,384,26);
     // Left wall
     addWall(40,216,26,384); addWall(40,480,26,144); addWall(40,576,26,48);
     // Right wall
@@ -375,7 +375,7 @@ export default class Room2Scene extends Phaser.Scene {
     this.safeZoneRect = new Phaser.Geom.Rectangle(
       wardrobeX - 66, wardrobeY - 80, 132, 120
     );
-    this.exitZone = new Phaser.Geom.Rectangle(408, 30, 144, 90);
+    this.exitZone = new Phaser.Geom.Rectangle(408, 56, 144, 96);
 
     // Invisible safe-zone blocker (owner can't enter)
     const sbm = 12;
@@ -744,6 +744,10 @@ export default class Room2Scene extends Phaser.Scene {
 
   _handleInteract(time) {
     if (!Phaser.Input.Keyboard.JustDown(this.cursors.E) || this.hidden || this.gameOver) return;
+    if (this.isPlayerInExitZone()) {
+      this._tryExitRoom();
+      return;
+    }
     // Check loot first
     const loot = this._getLootClosest(this.player.x, this.player.y, 50);
     if (loot) { this._collectLoot(loot); return; }
@@ -959,8 +963,7 @@ export default class Room2Scene extends Phaser.Scene {
     if (!this._allLootCollected()) {
       if (this.exitPromptMode!=='blocked') {
         this.exitPromptVisible=true; this.exitPromptMode='blocked';
-        this.updatePrompt(`Need all loot before escaping (${this._lootCollected}/${this._lootTotal})`, 'warning');
-        this._onExitDenied();
+        this.updatePrompt(`Collect all loot before escaping. (${this._lootCollected}/${this._lootTotal})`, 'warning');
       }
       return;
     }
@@ -968,7 +971,17 @@ export default class Room2Scene extends Phaser.Scene {
       this.exitPromptVisible=true; this.exitPromptMode='ready';
       this.updatePrompt('All loot secured. Press E to escape.', 'success');
     }
-    if (!Phaser.Input.Keyboard.JustDown(this.cursors.E)) return;
+  }
+
+  _tryExitRoom() {
+    if (this.roomCompleted) return;
+    if (!this._allLootCollected()) {
+      this.exitPromptVisible = true;
+      this.exitPromptMode = 'blocked';
+      this.updatePrompt(`Collect all loot before escaping. (${this._lootCollected}/${this._lootTotal})`, 'warning');
+      this._onExitDenied();
+      return;
+    }
     this._completeRoom();
   }
 

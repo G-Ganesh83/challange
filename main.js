@@ -28,14 +28,12 @@ const config = {
     }
   },
   scene: [
-    // TEMP DEV START: put Room2 first so refresh loads Room 2 directly.
-    // Move Room2Scene back below GameScene to restore the normal intro flow.
-    Room2Scene,
     BootScene,
     IntroScene,
     MainMenuScene,
     MissionScene,
     GameScene,
+    Room2Scene,
     TransitionScene,
   ]
 };
