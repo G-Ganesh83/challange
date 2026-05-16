@@ -74,7 +74,7 @@ export default class MainMenuScene extends Phaser.Scene {
     });
 
     // Tagline
-    this.add.text(cx, titleY + 52, 'SNEAK · STEAL · SURVIVE', {
+    this.add.text(cx, titleY + 68, 'SNEAK · STEAL · SURVIVE', {
       fontFamily: 'Arial, sans-serif',
       fontSize: '13px', color: '#ddccff',
     }).setOrigin(0.5).setDepth(8);
@@ -82,7 +82,7 @@ export default class MainMenuScene extends Phaser.Scene {
     // Separator
     const sep = this.add.graphics().setDepth(7);
     sep.lineStyle(1, 0x6600cc, 0.5);
-    sep.lineBetween(cx - 140, titleY + 68, cx + 140, titleY + 68);
+    sep.lineBetween(cx - 140, titleY + 86, cx + 140, titleY + 86);
 
     this._setupTitleGlitch(title, cx);
 
@@ -108,7 +108,8 @@ export default class MainMenuScene extends Phaser.Scene {
       let arrowTween = null;
 
       const btn = this.add.text(baseX, item.y, item.label, {
-        fontFamily: '"Rajdhani", "Arial Black", Arial, sans-serif',
+        fontFamily: '"Rajdhani", Arial, sans-serif',
+        fontStyle: 'normal',
         fontSize: '26px', color: '#e0d8ff',
         stroke: '#000000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(9).setInteractive({ useHandCursor: true });
