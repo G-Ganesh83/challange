@@ -1,3 +1,5 @@
+import { inject } from '@vercel/analytics';
+inject();
 import Phaser from 'phaser';
 import BootScene       from './scenes/BootScene.js';
 import IntroScene      from './scenes/IntroScene.js';
