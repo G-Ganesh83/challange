@@ -46,7 +46,14 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('r2_sofa',      'assets/room2/furniture/sofa.png');
     this.load.image('r2_plant1',    'assets/room2/furniture/plant1.png');
     this.load.image('r2_plant2',    'assets/room2/furniture/plant2.png');
-    this.load.image('r2_owner',     'assets/room2/owner2.png');
+    this.load.image('r2_owner_idle_src',  'assets/room2/owner idle.png');
+    this.load.image('r2_owner_front_a',   'assets/room2/owner2_frontA.png');
+    this.load.image('r2_owner_front_b',   'assets/room2/owner2_frontB.png');
+    this.load.image('r2_owner_left_a',    'assets/room2/owner2_leftA.png');
+    this.load.image('r2_owner_left_b',    'assets/room2/owner2_leftB.png');
+    this.load.image('r2_owner_back_src',  'assets/room2/owner2_back.png');
+    this.load.image('r2_owner_sleep_src', 'assets/room2/owner2_sleep.png');
+    this.load.image('r2_owner_doubt_src', 'assets/room2/owner2_doubt.png');
 
     // ── room2 loot ───────────────────────────────────────────
     this.load.image('r2_loot_gpu',       'assets/room2/loot/gpu.png');

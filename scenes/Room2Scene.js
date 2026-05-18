@@ -62,8 +62,14 @@ export default class Room2Scene extends Phaser.Scene {
 
     // Room 2 exclusive assets
     safeImg('r2_bg',        'assets/room2/bg.png');
-    safeImg('r2_owner_src', 'assets/room2/owner2.png');
-    safeImg('r2_owner_idle_src', 'assets/characters/Owner2_idle.png');
+    safeImg('r2_owner_idle_src',  'assets/room2/owner idle.png');
+    safeImg('r2_owner_front_a',   'assets/room2/owner2_frontA.png');
+    safeImg('r2_owner_front_b',   'assets/room2/owner2_frontB.png');
+    safeImg('r2_owner_left_a',    'assets/room2/owner2_leftA.png');
+    safeImg('r2_owner_left_b',    'assets/room2/owner2_leftB.png');
+    safeImg('r2_owner_back_src',  'assets/room2/owner2_back.png');
+    safeImg('r2_owner_sleep_src', 'assets/room2/owner2_sleep.png');
+    safeImg('r2_owner_doubt_src', 'assets/room2/owner2_doubt.png');
     safeImg('r2_cpdesk',    'assets/room2/furniture/cpDesk.png');
     safeImg('r2_chair',     'assets/room2/furniture/chair.png');
     safeImg('r2_gmgtable',  'assets/room2/furniture/gmgtable.png');
@@ -128,6 +134,9 @@ export default class Room2Scene extends Phaser.Scene {
     this.catchContactMs     = 0;
     this.lastRunNoiseAt     = 0;
     this.roomIntroActive    = true;
+    this.usesOwnerDirectionalVisuals = true;
+    this._ownerVisualState = '';
+    this._ownerLastFacing = 'front';
 
     // Systems
     this.noiseSystem     = new NoiseSystem(this);
@@ -138,6 +147,7 @@ export default class Room2Scene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this._cleanupSceneState());
 
     this._prepareTextures();
+    this._createOwnerAnimations();
     this._createRoom();
     this._createPlayer();
     this._createOwner();
@@ -198,8 +208,14 @@ export default class Room2Scene extends Phaser.Scene {
       if (!this.textures.exists(tgt)) this._cropTex(src, tgt);
     });
     // Room 2 owner textures
-    this._cropTex('r2_owner_src', 'r2_owner_sleep', { keyColorTrim: true, keyColorTolerance: 18 });
     this._cropTex('r2_owner_idle_src', 'r2_owner_idle', { keyColorTrim: true, keyColorTolerance: 18 });
+    this._cropTex('r2_owner_front_a', 'r2_owner_frontA', { keyColorTrim: true, keyColorTolerance: 18 });
+    this._cropTex('r2_owner_front_b', 'r2_owner_frontB', { keyColorTrim: true, keyColorTolerance: 18 });
+    this._cropTex('r2_owner_left_a', 'r2_owner_leftA', { keyColorTrim: true, keyColorTolerance: 18 });
+    this._cropTex('r2_owner_left_b', 'r2_owner_leftB', { keyColorTrim: true, keyColorTolerance: 18 });
+    this._cropTex('r2_owner_back_src', 'r2_owner_back', { keyColorTrim: true, keyColorTolerance: 18 });
+    this._cropTex('r2_owner_sleep_src', 'r2_owner_sleep', { keyColorTrim: true, keyColorTolerance: 18 });
+    this._cropTex('r2_owner_doubt_src', 'r2_owner_doubt', { keyColorTrim: true, keyColorTolerance: 18 });
     // Room 2 furniture
     const furniturePairs = [
       ['r2_cpdesk','r2t_cpdesk'],['r2_chair','r2t_chair'],
@@ -215,6 +231,25 @@ export default class Room2Scene extends Phaser.Scene {
       ['r2_usb','r2t_usb'],
     ];
     lootPairs.forEach(([src, tgt]) => this._cropTex(src, tgt, { keyColorTrim: true, keyColorTolerance: 24 }));
+  }
+
+  _createOwnerAnimations() {
+    if (!this.anims.exists('r2_owner_walk_front')) {
+      this.anims.create({
+        key: 'r2_owner_walk_front',
+        frames: [{ key: 'r2_owner_frontA' }, { key: 'r2_owner_frontB' }],
+        frameRate: 7,
+        repeat: -1
+      });
+    }
+    if (!this.anims.exists('r2_owner_walk_left')) {
+      this.anims.create({
+        key: 'r2_owner_walk_left',
+        frames: [{ key: 'r2_owner_leftA' }, { key: 'r2_owner_leftB' }],
+        frameRate: 7,
+        repeat: -1
+      });
+    }
   }
 
   _cropTex(sourceKey, targetKey, options = {}) {
@@ -549,10 +584,10 @@ export default class Room2Scene extends Phaser.Scene {
     this.ownerAlertScale   = 0.24;
 
     // Owner sleeps on sofa
-    const sleepTex = this.textures.exists('r2_owner_sleep') ? 'r2_owner_sleep' : 'r2_owner_src';
+    const sleepTex = this.textures.exists('r2_owner_sleep') ? 'r2_owner_sleep' : 'r2_owner_idle';
     this.ownerSleepPosition = { x: 820, y: 470 };
     this.owner = this.physics.add.sprite(820, 470, sleepTex);
-    this.owner.setImmovable(true).setScale(0.24).setDepth(22).setCollideWorldBounds(true);
+    this.owner.setImmovable(true).setScale(0.24).setDepth(70).setCollideWorldBounds(true);
     this.owner.body.allowGravity = false;
     this.owner.state = 'sleeping';
     this._applyOwnerFootHitbox();
@@ -575,7 +610,7 @@ export default class Room2Scene extends Phaser.Scene {
 
   _resetOwnerToStart() {
     if (!this.owner) return;
-    const sleepTex = this.textures.exists('r2_owner_sleep') ? 'r2_owner_sleep' : 'r2_owner_src';
+    const sleepTex = this.textures.exists('r2_owner_sleep') ? 'r2_owner_sleep' : 'r2_owner_idle';
     this.owner.body?.reset(820, 470);
     this.owner.setPosition(820, 470);
     this.owner.setVelocity(0, 0);
@@ -583,6 +618,10 @@ export default class Room2Scene extends Phaser.Scene {
     this.owner.body.moves = true;
     this.owner.state = 'sleeping';
     this.owner.setTexture(sleepTex).setScale(0.24).setVisible(true).setAlpha(1);
+    this.owner.setFlipX(false);
+    this.owner.anims?.stop();
+    this._ownerVisualState = 'sleep';
+    this._ownerLastFacing = 'front';
     this._applyOwnerFootHitbox();
     this.chaseMode = false;
     this.catchContactMs = 0;
@@ -636,15 +675,6 @@ export default class Room2Scene extends Phaser.Scene {
   }
 
   _setupPolish() {
-    // Owner breathing bob on sofa
-    this.ownerBobTween = this.tweens.add({
-      targets:this.owner, y:'+=1.4', duration:2600, yoyo:true, repeat:-1, ease:'Sine.inOut'
-    });
-    this.ownerPulseTween = this.tweens.add({
-      targets:this.owner, scaleX:0.098, scaleY:0.094, duration:2400, yoyo:true, repeat:-1, ease:'Sine.inOut'
-    });
-    this.setOwnerBreathing(true);
-
     // Plant gentle sway
     this.tweens.add({ targets:this.plant1, angle:1.2, duration:2200, yoyo:true, repeat:-1, ease:'Sine.inOut' });
     this.tweens.add({ targets:this.plant2, angle:-1.2, duration:2600, yoyo:true, repeat:-1, ease:'Sine.inOut' });
@@ -666,6 +696,7 @@ export default class Room2Scene extends Phaser.Scene {
     this._updateMovementAudio(time);
     this._updateSafeZoneTransition(time);
     this._updateOwnerState(time);
+    this._updateOwnerVisual(time);
     this._checkExitInteraction();
     this._updateAmbient(time);
     this._updatePlayerReadability();
@@ -814,7 +845,7 @@ export default class Room2Scene extends Phaser.Scene {
     this.playSfx('fahh', { minGap:180, delay:10, volume:0.34 });
     this._bumpPlayerFromSideWall(solid);
     if (this.chaseMode) { this.screenShake(16); return; }
-    if (this.noiseSystem.noise >= this.ownerAI?.cfg?.wakeThreshold ?? 0.72) {
+    if (this.noiseSystem.noise >= (this.ownerAI?.cfg?.wakeThreshold ?? 0.72)) {
       this.updatePrompt('Wall bump. The owner stirred.', 'warning');
     } else {
       this.screenShake(10);
@@ -902,8 +933,7 @@ export default class Room2Scene extends Phaser.Scene {
     if (!this.chaseMode) {
       if (this.owner.state === 'alert' || this.owner.state === 'searching') return;
       this.setOwnerBreathing(true);
-      const sleepTex = this.textures.exists('r2_owner_sleep') ? 'r2_owner_sleep' : 'r2_owner_src';
-      this.owner.setTexture(sleepTex).setScale(0.24).setVisible(true);
+      if (this.owner.state === 'sleeping') this._setOwnerSleepTexture();
       return;
     }
     const inSafe = this.isPlayerInSafeZone();
@@ -930,6 +960,8 @@ export default class Room2Scene extends Phaser.Scene {
       this.player.setVisible(false);
       this.player.body.enable = false;
       this.player.setVelocity(0, 0);
+      this.owner?.setVelocity(0, 0);
+      this._setOwnerStaticVisual('doubt', 'r2_owner_doubt');
       this.playSfx('enter', { minGap:900, delay:40 });
       this.updatePrompt('Hidden. Stay quiet.', 'info');
       this._showHideTension(true);
@@ -1309,7 +1341,88 @@ export default class Room2Scene extends Phaser.Scene {
 
   /* ─────────────────────── OWNER TEXTURE HELPERS ─────────────*/
   _setOwnerSleepTexture() {
-    const sleepTex = this.textures.exists('r2_owner_sleep') ? 'r2_owner_sleep' : 'r2_owner_src';
-    this.owner.setTexture(sleepTex).setScale(0.24);
+    if (!this.owner || this._ownerVisualState === 'sleep') return;
+    const sleepTex = this.textures.exists('r2_owner_sleep') ? 'r2_owner_sleep' : 'r2_owner_idle';
+    this.owner.anims?.stop();
+    this.owner.setFlipX(false);
+    this.owner.setTexture(sleepTex).setScale(0.24).setVisible(true);
+    this._ownerVisualState = 'sleep';
+    this._applyOwnerFootHitbox();
+  }
+
+  _setOwnerStaticVisual(state, textureKey, flipX = false) {
+    if (!this.owner || this._ownerVisualState === state) return;
+    this.owner.anims?.stop();
+    this.owner.setFlipX(flipX);
+    this.owner.setTexture(this.textures.exists(textureKey) ? textureKey : 'r2_owner_idle');
+    this.owner.setScale(0.24).setVisible(true);
+    this._ownerVisualState = state;
+    this._applyOwnerFootHitbox();
+  }
+
+  _playOwnerMoveAnim(state, animKey, flipX = false, timeScale = 1) {
+    if (!this.owner) return;
+    this.owner.setFlipX(flipX);
+    this.owner.anims.timeScale = timeScale;
+    if (this._ownerVisualState !== state || this.owner.anims.currentAnim?.key !== animKey || !this.owner.anims.isPlaying) {
+      this.owner.play(animKey, true);
+      this._ownerVisualState = state;
+      this._applyOwnerFootHitbox();
+    }
+    this.owner.setScale(0.24).setVisible(true);
+  }
+
+  _updateOwnerVisual(time) {
+    if (!this.owner || this.roomCompleted || this.gameOver) return;
+
+    if (this.owner.state === 'sleeping') {
+      this._setOwnerSleepTexture();
+      return;
+    }
+
+    if (this.isPlayerInSafeZone()) {
+      this._setOwnerStaticVisual('doubt', 'r2_owner_doubt');
+      return;
+    }
+
+    if (this.owner.state === 'disturbed' || this.owner.state === 'searching' || this.owner.state === 'alert') {
+      const vx = this.owner.body?.velocity?.x ?? 0;
+      const vy = this.owner.body?.velocity?.y ?? 0;
+      if (Math.abs(vx) < 8 && Math.abs(vy) < 8) {
+        this._setOwnerStaticVisual('doubt', 'r2_owner_doubt');
+        return;
+      }
+    }
+
+    const vx = this.owner.body?.velocity?.x ?? 0;
+    const vy = this.owner.body?.velocity?.y ?? 0;
+    const speedSq = vx * vx + vy * vy;
+    const moving = speedSq > 64;
+    const animSpeed = this.chaseMode ? 1.18 : 1;
+
+    if (!moving) {
+      this._setOwnerStaticVisual(`idle-${this._ownerLastFacing}`, 'r2_owner_idle');
+      return;
+    }
+
+    if (Math.abs(vx) > Math.abs(vy)) {
+      if (vx < 0) {
+        this._ownerLastFacing = 'left';
+        this._playOwnerMoveAnim('walk-left', 'r2_owner_walk_left', false, animSpeed);
+      } else {
+        this._ownerLastFacing = 'right';
+        this._playOwnerMoveAnim('walk-right', 'r2_owner_walk_left', true, animSpeed);
+      }
+      return;
+    }
+
+    if (vy < 0) {
+      this._ownerLastFacing = 'back';
+      this._setOwnerStaticVisual('walk-back', 'r2_owner_back');
+      return;
+    }
+
+    this._ownerLastFacing = 'front';
+    this._playOwnerMoveAnim('walk-front', 'r2_owner_walk_front', false, animSpeed);
   }
 }

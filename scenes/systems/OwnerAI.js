@@ -86,8 +86,8 @@ export default class OwnerAI {
       return;
     }
 
-    // Patrol or stand still
-    if (this.cfg.patrolPoints?.length) {
+    // Patrol only after the owner has actually been disturbed.
+    if (owner.state === 'patrol' && this.cfg.patrolPoints?.length) {
       this._handlePatrol(dt);
     } else {
       owner.setVelocity(0, 0);
@@ -114,8 +114,10 @@ export default class OwnerAI {
       this._alertPhaseUntil = 0;
       if (s.hidden) s.hiddenSuccessfully = true;
       s.setOwnerBreathing(false);
-      owner.setTexture(s.ownerAlertTexture ?? 'owner_alert');
-      owner.setScale(s.ownerAlertScale ?? this.alertScale);
+      if (!s.usesOwnerDirectionalVisuals) {
+        owner.setTexture(s.ownerAlertTexture ?? 'owner_alert');
+        owner.setScale(s.ownerAlertScale ?? this.alertScale);
+      }
       this._syncOwnerBody();
       owner.setVisible(true);
       s.tweens.killTweensOf(owner);
@@ -151,8 +153,10 @@ export default class OwnerAI {
     owner.state = 'chase';
     this._alertPhaseUntil = 0;
     s.setOwnerBreathing(false);
-    owner.setTexture(s.ownerAlertTexture ?? 'owner_alert');
-    owner.setScale(s.ownerAlertScale ?? this.alertScale);
+    if (!s.usesOwnerDirectionalVisuals) {
+      owner.setTexture(s.ownerAlertTexture ?? 'owner_alert');
+      owner.setScale(s.ownerAlertScale ?? this.alertScale);
+    }
     this._syncOwnerBody();
     owner.setVisible(true);
     s.tweens.killTweensOf(owner);
@@ -223,8 +227,10 @@ export default class OwnerAI {
     if (s.hidden) { owner.setVelocity(0, 0); return; }
 
     s.setOwnerBreathing(false);
-    owner.setTexture(s.ownerAlertTexture ?? 'owner_alert');
-    owner.setScale(s.ownerAlertScale ?? this.alertScale);
+    if (!s.usesOwnerDirectionalVisuals) {
+      owner.setTexture(s.ownerAlertTexture ?? 'owner_alert');
+      owner.setScale(s.ownerAlertScale ?? this.alertScale);
+    }
     owner.body.enable = true;
     owner.body.moves = true;
 
@@ -295,8 +301,13 @@ export default class OwnerAI {
     s.owner.state = 'sleeping';
     this._alertPhaseUntil = 0;
     s.setOwnerBreathing(true);
-    s.owner.setTexture(s.ownerSleepTexture ?? 'owner_sleep');
-    s.owner.setScale(s.ownerSleepScale ?? 0.25);
+    if (typeof s._setOwnerSleepTexture === 'function') {
+      s._ownerVisualState = '';
+      s._setOwnerSleepTexture();
+    } else {
+      s.owner.setTexture(s.ownerSleepTexture ?? 'owner_sleep');
+      s.owner.setScale(s.ownerSleepScale ?? 0.25);
+    }
     this._syncOwnerBody();
     s.owner.setVisible(true);
     s.owner.setVelocity(0, 0);

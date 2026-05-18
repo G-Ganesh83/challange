@@ -328,7 +328,7 @@ export default class GameScene extends Phaser.Scene {
   createOwner() {
     this.ownerSleepPosition = { x: 744, y: 210 };
     this.owner = this.physics.add.sprite(744,210,'owner_sleep');
-    this.owner.setImmovable(true).setScale(0.25).setDepth(21).setCollideWorldBounds(true);
+    this.owner.setImmovable(true).setScale(0.25).setDepth(70).setCollideWorldBounds(true);
     this.owner.body.allowGravity = false;
     this.owner.state = 'sleeping';
     this.applyOwnerFootHitbox();
